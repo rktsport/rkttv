@@ -240,13 +240,15 @@ const CONFIG = {
   GOOGLE_API_KEY: "",
   DEFAULT_SECONDS: 10,     // used when Length is blank
   REFRESH_MINUTES: 5,      // how often sheet changes are picked up (checked at the end of each rotation)
-  LADDER_CACHE_MINUTES: 10,
+  LADDER_CACHE_MINUTES: 15,
   SPONSOR_HEADING: "Proudly sponsored by",
   // RKT Sport branding: logo on the club list, and a splash slide after every Nth full rotation
   // Scores ticker in the bottom bar (uses the club's PlayCricketID from the master sheet)
   TICKER: true,
-  TICKER_REFRESH_MINUTES: 3,
-  TICKER_LIVE_REFRESH_MINUTES: 1.5,   // faster refresh while a club game is live (includes batters/bowler)
+  TICKER_REFRESH_MINUTES: 3,          // on match days
+  TICKER_IDLE_REFRESH_MINUTES: 30,    // days with no club games
+  TICKER_LIVE_REFRESH_SECONDS: 10,    // while a club game is live: live scorecards (scores, batters, bowler) refresh this often;
+                                      // the full check of all grades still runs every TICKER_REFRESH_MINUTES
   TICKER_SPEED: 9,          // scroll speed (bigger = faster)
   RKT_LOGO: "https://rktsport.wordpress.com/wp-content/uploads/2023/02/rkt-cut-out-1.png",
   RKT_EMAIL: "rktsportau@gmail.com",
@@ -281,10 +283,16 @@ function driveFileIdOf(url){
   const m = url.match(/\/d\/([\w-]{10,})/) || url.match(/[?&]id=([\w-]{10,})/);
   return m ? m[1] : null;
 }
-const driveImg = id => `https://drive.google.com/thumbnail?id=${id}&sz=w2560`;
+const driveImg = id => `https://drive.google.com/thumbnail?id=${id}&sz=w1920`;
 const driveImgAlt = id => `https://lh3.googleusercontent.com/d/${id}=w2560`;
 // Wix serves resized copies; strip the /v1/... part to get the full-resolution original for the TV
 const fullRes = url => String(url || "").trim().replace(/^(https?:\/\/static\.wixstatic\.com\/media\/[^\/?#]+)\/v1\/.*$/i, "$1");
+// Ask Wix for a copy sized for the TV instead of the full original (saves bandwidth and TV memory).
+// The original is used automatically if the sized copy fails (see data-alt / loadAny).
+function sized(url, w, h){
+  const full = fullRes(url), m = full.match(/^https?:\/\/static\.wixstatic\.com\/media\/([^\/?#]+)$/i);
+  return m ? `${full}/v1/fit/w_${w},h_${h},q_90/${m[1]}` : full;
+}
 
 function parseColour(v, fallback){
   v = String(v || "").trim();
@@ -394,7 +402,8 @@ function clubFromRow(r){
     name: String(r.club).trim(),
     c1: parseColour(r.colour1 || r.color1, [14,22,58]),
     c2: parseColour(r.colour2 || r.color2, [190,150,60]),
-    logo: fullRes(r.logo),
+    logo: sized(r.logo, 400, 400),
+    logoAlt: fullRes(r.logo),
     pcId: String(r.playcricketid || "").trim().toLowerCase(),
     sheet: String(r.sheet || r["sheet link"] || r["sheet id"] || "").trim(),
     folder: String(r.folder || r["folder link"] || r["folder id"] || "").trim()
@@ -420,7 +429,7 @@ async function buildSlides(club){
       let src, alt = null;
       const dId = driveFileIdOf(link);
       if (dId){ src = driveImg(dId); alt = driveImgAlt(dId); }
-      else if (/^https?:\/\//i.test(link)) src = fullRes(link);
+      else if (/^https?:\/\//i.test(link)){ src = sized(link, type === "image" ? 1920 : 1400, type === "image" ? 1080 : 700); alt = fullRes(link); }
       else {
         const name = fname || link; if (!name) continue;
         if (!folderFiles){ try { folderFiles = await listClubFolder(club); } catch (e){ warn(e.message); folderFiles = []; } }
@@ -442,7 +451,8 @@ const pageTurns = new Map();   // list -> how many times it has been shown (surv
 // Honours tab columns (any order, matched by header): Name (required), No, Year/Season, Award, Details, Image
 const pick = (r, keys) => { for (const k of keys){ const v = r[k]; if (v !== undefined && String(v).trim() !== "") return String(v).trim(); } return ""; };
 const initials = n => { const w = String(n).replace(/'[^']*'|"[^"]*"|\([^)]*\)/g, " ").trim().split(/\s+/).filter(x => /^[a-z0-9]/i.test(x)); return ((w[0] || "?")[0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase(); };
-function imgSrc(v){ if (!v) return ""; const d = driveFileIdOf(v); return d ? driveImg(d) : /^https?:\/\//i.test(v) ? fullRes(v) : ""; }
+function imgSrc(v, w = 600){ if (!v) return ""; const d = driveFileIdOf(v); return d ? driveImg(d).replace(/sz=w\d+/, "sz=w" + w) : /^https?:\/\//i.test(v) ? sized(v, w, w) : ""; }
+const imgAlt = v => { if (!v) return ""; const d = driveFileIdOf(v); return d ? driveImgAlt(d) : fullRes(v); };
 function splitDetails(t){
   return String(t || "").split(/\r?\n|\s+\|\s+|;\s*|,\s*(?=[A-Z][^,:]{1,40}:)/).map(x => x.trim()).filter(Boolean);
 }
@@ -456,7 +466,8 @@ async function honoursSlides(club, link, title, secs){
     year: pick(r, ["year", "season", "inducted", "years", "date"]),
     award: pick(r, ["award", "honour", "honor", "achievement", "title", "position", "role", "category"]),
     details: pick(r, ["details", "detail", "description", "achievements", "notes", "citation"]),
-    image: imgSrc(pick(r, ["image", "photo", "picture", "img", "image link", "photo link"]))
+    image: imgSrc(pick(r, ["image", "photo", "picture", "img", "image link", "photo link"])),
+    imageAlt: imgAlt(pick(r, ["image", "photo", "picture", "img", "image link", "photo link"]))
   })).filter(e => e.name);
   if (!entries.length) throw new Error("no rows with a Name");
   const feature = entries.some(e => e.details);
@@ -475,7 +486,7 @@ async function honoursSlides(club, link, title, secs){
 }
 function honoursHTML(s, club){
   const mono = (e, cls = "") => `<div class="h-mono ${cls}"><span>${esc(initials(e.name))}</span></div>`;
-  const pic = (e, cls) => e.image ? `<img class="${cls}" src="${esc(e.image)}" alt="" onerror="this.outerHTML=${esc(JSON.stringify(mono(e)))}">` : mono(e);
+  const pic = (e, cls) => e.image ? `<img class="${cls}" src="${esc(useSrc(e.image, e.imageAlt))}" data-alt="${esc(e.imageAlt || "")}" alt="" onerror="this.outerHTML=${esc(JSON.stringify(mono(e)))}">` : mono(e);
   let body;
   if (s.layout === "feature"){
     body = `<div class="h-feat" style="--cols:${s.cols}">${s.entries.map(e => `
@@ -493,7 +504,7 @@ function honoursHTML(s, club){
   }
   return `
     <div class="h-head">
-      ${club.logo ? `<img class="clogo" src="${esc(club.logo)}" alt="" onerror="this.remove()">` : ""}
+      ${club.logo ? `<img class="clogo" src="${esc(club.logo)}" data-alt="${esc(club.logoAlt || "")}" alt="" onerror="this.remove()">` : ""}
       <div><div class="l-kicker">${esc(club.name)} · Honour board</div><div class="l-title">${esc(s.title)}</div></div>
       ${s.pages > 1 ? `<div class="h-meta"><div class="chip">${s.page} of ${s.pages}</div></div>` : ""}
     </div>
@@ -509,15 +520,33 @@ function fitHonours(el){
 }
 
 /* ---------- image preloading ---------- */
+// If a resized image fails, retry once with the original (runs before the element's own onerror)
+document.addEventListener("error", e => {
+  const t = e.target;
+  if (t && t.tagName === "IMG" && t.dataset.alt && !t.dataset.tried && t.dataset.alt !== t.src){
+    failedSrc.add(t.getAttribute("src")); t.dataset.tried = "1"; e.stopImmediatePropagation(); t.src = t.dataset.alt;
+  }
+}, true);
+// Loaded images are kept for the life of the page so each is only downloaded once
+const imgCache = new Map(), keepImgs = new Map();
+const failedSrc = new Set();   // resized URLs that failed: go straight to the original next time
+const useSrc = (src, alt) => (alt && failedSrc.has(src)) ? alt : src;
 function loadImg(src, ms = 20000){
+  if (imgCache.has(src)) return imgCache.get(src);
+  const p = loadImgOnce(src, ms);
+  imgCache.set(src, p); p.catch(() => imgCache.delete(src));
+  if (imgCache.size > 150) imgCache.delete(imgCache.keys().next().value);
+  return p;
+}
+function loadImgOnce(src, ms){
   return new Promise((ok, fail) => {
     const img = new Image(); const t = setTimeout(() => fail(new Error("Timed out loading " + src)), ms);
-    img.onload = () => { clearTimeout(t); ok(src); };
+    img.onload = () => { clearTimeout(t); keepImgs.set(src, img); if (keepImgs.size > 150) keepImgs.delete(keepImgs.keys().next().value); ok(src); };
     img.onerror = () => { clearTimeout(t); fail(new Error("Couldn't load " + src)); };
     img.src = src;
   });
 }
-async function loadAny(src, alt){ try { return await loadImg(src); } catch (e){ if (alt) return await loadImg(alt); throw e; } }
+async function loadAny(src, alt){ if (alt && failedSrc.has(src)) return loadImg(alt); try { return await loadImg(src); } catch (e){ if (alt){ failedSrc.add(src); return await loadImg(alt); } throw e; } }
 
 /* ---------- ladder ---------- */
 // Accepts a bare grade ID (e.g. 6075bd49-a742-47b9-8172-be5248dcf113), a full API link,
@@ -701,10 +730,15 @@ async function seasonItems(orgId, info){
   await Promise.all(live.filter(it => it.kind === "live").map(async it => {
     try {
       const card = await apiJSON(`${API}/scores/matches/${it.m.id}?responseModifier=includeScorecard&${Q}`, d => d && d.id);
+      const upd = card.matchSummary?.teams || [];
+      for (const t of it.m.teams || []){ const u = upd.find(x => x.id === t.id); if (u && u.scoreText !== undefined){ t.scoreText = u.scoreText; t.isBatting = !!u.isBatting; } }
       it.players = livePlayers(card, it.m);
     } catch (e){ warn("Live scorecard: " + e.message); }
   }));
-  return { live, results };
+  // Is the club playing today (or within the next 2 hours)? Decides how often scores are checked.
+  const matchDay = all.flat().some(({ m }) => (m.teams || []).some(t => String(t.owningOrganisation?.id || "").toLowerCase() === orgId)
+    && !FINAL.test(String(m.status || "")) && (m.matchSchedule || []).some(x => { const d = Date.parse(x.startDateTime); return dayKey(d) === today || (d > now && d - now < 2 * 3600e3); }));
+  return { live, results, matchDay };
 }
 
 // Batters at the crease + current bowler from a match scorecard
@@ -753,13 +787,13 @@ function startTicker(club, bar){
   box.innerHTML = `<div class="tk-track"></div>`;
   bar.querySelector(".dots").before(box);
   const track = box.firstElementChild;
-  let pending = null, structure = null, structT = 0;
+  let pending = null, structure = null, structT = 0, reps = 1;
 
   const apply = html => {
     const one = `<div class="tk-set">${html}</div>`;
     track.innerHTML = one;
     const set = track.firstElementChild;
-    let reps = 1;
+    reps = 1;
     while (set.offsetWidth < box.clientWidth && reps < 20){ set.insertAdjacentHTML("beforeend", html); reps++; }
     track.insertAdjacentHTML("beforeend", `<div class="tk-set" aria-hidden="true">${set.innerHTML}</div>`);
     const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -767,6 +801,20 @@ function startTicker(club, bar){
     track.style.animation = "none"; void track.offsetWidth; track.style.animation = "";
   };
   track.addEventListener("animationiteration", () => { if (pending !== null){ const h = pending; pending = null; apply(h); } });
+  // Swap updated live scores in without restarting the scroll
+  const applyInPlace = html => {
+    const sets = track.querySelectorAll(".tk-set");
+    if (sets.length !== 2){ apply(html); return; }
+    const before = sets[0].offsetWidth;
+    sets.forEach(x => x.innerHTML = html.repeat(reps));
+    const after = sets[0].offsetWidth;
+    if (after < box.clientWidth || Math.abs(after - before) / before > 0.25) pending = html;   // big change: rebuild at end of loop
+  };
+  const show = (html, inPlace) => {
+    if (box.hidden){ box.hidden = false; bar.classList.add("has-ticker"); apply(html); }
+    else if (html !== box.dataset.last){ if (inPlace) applyInPlace(html); else pending = html; }
+    box.dataset.last = html;
+  };
 
   async function refresh(){
     try {
@@ -776,19 +824,37 @@ function startTicker(club, bar){
         if (typeof structure.prev === "function") structure.prev = await structure.prev();
         if (structure.prev){ data = await seasonItems(club.pcId, structure.prev); label = structure.prev.season.name.replace(/^Summer\s*/i, ""); }
       }
-      hasLive = data.live.length > 0;
+      hasLive = data.live.length > 0; matchDay = !!data.matchDay; liveItems = data.live; lastFull = Date.now();
       const items = data.live.length ? data.live : data.results;   // live games take over the ticker while any are on
       if (!items.length){ box.hidden = true; bar.classList.remove("has-ticker"); return; }
-      const html = items.map(it => tickerItemHTML(it, it.kind === "result" ? label : "")).join("");
-      if (box.hidden){ box.hidden = false; bar.classList.add("has-ticker"); apply(html); }
-      else if (html !== box.dataset.last) pending = html;
-      box.dataset.last = html;
+      show(items.map(it => tickerItemHTML(it, it.kind === "result" ? label : "")).join(""), hasLive && wasLive);
+      wasLive = hasLive;
     } catch (e){ warn("Scores ticker: " + e.message); }
   }
-  let hasLive = false;
+  // Fast path while live: only re-read the live matches' scorecards
+  async function liveRefresh(){
+    let ended = false;
+    await Promise.all(liveItems.filter(it => it.kind === "live").map(async it => {
+      try {
+        const card = await apiJSON(`${API}/scores/matches/${it.m.id}?responseModifier=includeScorecard&${Q}`, d => d && d.id);
+        const upd = card.matchSummary?.teams || card.teams || [];
+        for (const t of it.m.teams || []){
+          const u = upd.find(x => x.id === t.id);
+          if (u){ if (u.scoreText !== undefined) t.scoreText = u.scoreText; t.isBatting = !!u.isBatting; t.isWinner = !!u.isWinner; }
+        }
+        if (card.status){ it.m.status = card.status; if (FINAL.test(card.status)) ended = true; }
+        if (card.matchSummary?.resultText) it.m.resultText = card.matchSummary.resultText;
+        it.players = livePlayers(card, it.m);
+      } catch (e){ warn("Live scorecard: " + e.message); }
+    }));
+    if (ended) return refresh();   // a game finished: do a full check straight away
+    show(liveItems.map(it => tickerItemHTML(it, "")).join(""), true);
+  }
+  let hasLive = false, wasLive = false, matchDay = false, liveItems = [], lastFull = 0;
   (async function loop(){
-    await refresh();
-    setTimeout(loop, (hasLive ? CONFIG.TICKER_LIVE_REFRESH_MINUTES : CONFIG.TICKER_REFRESH_MINUTES) * 60e3);
+    if (hasLive && Date.now() - lastFull < CONFIG.TICKER_REFRESH_MINUTES * 60e3) await liveRefresh();
+    else await refresh();
+    setTimeout(loop, hasLive ? CONFIG.TICKER_LIVE_REFRESH_SECONDS * 1000 : (matchDay ? CONFIG.TICKER_REFRESH_MINUTES : CONFIG.TICKER_IDLE_REFRESH_MINUTES) * 60e3);
   })();
 }
 
@@ -822,7 +888,7 @@ function renderMenu(clubs){
       </div>
       <div class="grid">${clubs.map(c => `
         <a class="card" style="${varStyle(c)}" href="?club=${encodeURIComponent(c.name)}">
-          <div class="logo">${c.logo ? `<img src="${esc(c.logo)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:${esc(JSON.stringify(c.name.charAt(0)))}}))">` : `<span>${esc(c.name.charAt(0))}</span>`}</div>
+          <div class="logo">${c.logo ? `<img src="${esc(c.logo)}" data-alt="${esc(c.logoAlt || "")}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:${esc(JSON.stringify(c.name.charAt(0)))}}))">` : `<span>${esc(c.name.charAt(0))}</span>`}</div>
           <div class="name">${esc(c.name)}</div>
           <div class="go">Start screen ›</div>
         </a>`).join("")}
@@ -841,7 +907,7 @@ async function runClub(club){
       <div class="stage" id="stage"></div>
       <div class="bar">
         <div class="progress" id="prog"></div>
-        ${club.logo ? `<img class="blogo" src="${esc(club.logo)}" alt="" onerror="this.remove()">` : ""}
+        ${club.logo ? `<img class="blogo" src="${esc(club.logo)}" data-alt="${esc(club.logoAlt || "")}" alt="" onerror="this.remove()">` : ""}
         <div class="club">${esc(club.name)}</div>
         <div class="dots" id="dots"></div>
         <div class="clock" id="clock"></div>
