@@ -144,6 +144,10 @@
   .s-kicker::before,.s-kicker::after{content:"";width:9rem;height:.22rem;background:currentColor;opacity:.55}
   .s-panel{background:#fff;border-radius:1.8rem;padding:3.5rem 4.5rem;box-shadow:0 2.5rem 6rem rgba(0,0,0,.55),0 0 0 .4rem rgba(var(--c2),.9)}
   .s-panel img{display:block;width:66rem;height:27rem;object-fit:contain}
+  .sponsor:has(.s-details){gap:2.4rem}
+  .s-details{display:flex;flex-direction:column;align-items:center;gap:.7rem;text-align:center;max-width:80rem}
+  .s-details div{font:500 2.3rem/1.25 "Barlow",sans-serif;color:rgba(255,255,255,.82)}
+  .s-details div.first{font:700 3.2rem/1.1 var(--cond);letter-spacing:.04em;text-transform:uppercase;color:#fff}
 
   /* Image */
   .image .blur{position:absolute;inset:-6%;background-size:cover;background-position:center;filter:blur(3rem) brightness(.42) saturate(1.2)}
@@ -424,7 +428,7 @@ async function buildSlides(club){
         if (!f){ warn(`"${name}" isn't in ${club.name}'s folder — skipped.`); continue; }
         src = driveImg(f.id); alt = driveImgAlt(f.id);
       }
-      slides.push({ kind: type, src, alt, secs });
+      slides.push({ kind: type, src, alt, secs, details: String(r.details || r.detail || "").trim() });
     } else if (/^hono(u)?r|^lifemember|^awards?$/.test(type)){
       try { slides.push(...await honoursSlides(club, link, fname, secs)); }
       catch (e){ warn(`Honours "${fname || link}": ${e.message}`); }
@@ -434,6 +438,7 @@ async function buildSlides(club){
 }
 
 /* ---------- honours ---------- */
+const pageTurns = new Map();   // list -> how many times it has been shown (survives sheet refreshes)
 // Honours tab columns (any order, matched by header): Name (required), No, Year/Season, Award, Details, Image
 const pick = (r, keys) => { for (const k of keys){ const v = r[k]; if (v !== undefined && String(v).trim() !== "") return String(v).trim(); } return ""; };
 const initials = n => { const w = String(n).replace(/'[^']*'|"[^"]*"|\([^)]*\)/g, " ").trim().split(/\s+/).filter(x => /^[a-z0-9]/i.test(x)); return ((w[0] || "?")[0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase(); };
@@ -459,13 +464,14 @@ async function honoursSlides(club, link, title, secs){
   const hasAward = entries.some(e => e.award);
   const L = feature ? { cols: 3, rows: 1 } : thumbs ? { cols: 2, rows: 7 } : hasAward ? { cols: 2, rows: 8 } : { cols: 3, rows: 10 };
   const per = L.cols * L.rows, pages = Math.ceil(entries.length / per), perPage = Math.ceil(entries.length / pages);
-  const out = [];
+  const list = [];
   for (let p = 0; p < pages; p++){
     const chunk = entries.slice(p * perPage, (p + 1) * perPage);
-    out.push({ kind: "honours", title: title || tabName || "Honour Board", layout: feature ? "feature" : "board",
-      thumbs, cols: feature ? Math.min(L.cols, Math.max(chunk.length, 1)) : L.cols, rows: Math.ceil(chunk.length / L.cols), entries: chunk, page: p + 1, pages, secs });
+    list.push({ cols: feature ? Math.min(L.cols, Math.max(chunk.length, 1)) : L.cols, rows: Math.ceil(chunk.length / L.cols), entries: chunk, page: p + 1 });
   }
-  return out;
+  const t = title || tabName || "Honour Board";
+  // One slide per list: each time it comes round it shows the next page
+  return [{ kind: "honours", key: `${link}|${t}`, title: t, layout: feature ? "feature" : "board", thumbs, pageList: list, pages, secs }];
 }
 function honoursHTML(s, club){
   const mono = (e, cls = "") => `<div class="h-mono ${cls}"><span>${esc(initials(e.name))}</span></div>`;
@@ -620,12 +626,18 @@ async function makeSlide(s, club, stage){
     const L = ladderHTML(entry, s, club);
     el.innerHTML = L.html; stage.appendChild(el); fitLadder(el, L.n, L.k);
   } else if (s.kind === "honours"){
-    el.innerHTML = honoursHTML(s, club); stage.appendChild(el);
+    const n = pageTurns.get(s.key) || 0;
+    pageTurns.set(s.key, n + 1);
+    const pg = s.pageList[n % s.pageList.length];
+    el.innerHTML = honoursHTML({ ...s, ...pg }, club); stage.appendChild(el);
     await Promise.all([...el.querySelectorAll("img")].map(i => i.complete ? 0 : new Promise(r => { i.addEventListener("load", r); i.addEventListener("error", () => setTimeout(r, 0)); setTimeout(r, 8000); })));
     fitHonours(el);
   } else if (s.kind === "sponsor"){
     const src = await loadAny(s.src, s.alt);
-    el.innerHTML = `<div class="s-kicker">${esc(CONFIG.SPONSOR_HEADING)}</div><div class="s-panel"><img src="${esc(src)}" alt="Sponsor"></div>`;
+    const lines = String(s.details || "").split("|").map(x => x.trim()).filter(Boolean);
+    const imgH = Math.max(15, 27 - lines.length * 3.2);
+    el.innerHTML = `<div class="s-kicker">${esc(CONFIG.SPONSOR_HEADING)}</div><div class="s-panel"><img src="${esc(src)}" alt="Sponsor" style="height:${imgH}rem"></div>` +
+      (lines.length ? `<div class="s-details">${lines.map((l, i) => `<div class="${i === 0 ? "first" : ""}">${esc(l)}</div>`).join("")}</div>` : "");
     stage.appendChild(el);
   } else {
     const src = await loadAny(s.src, s.alt);
