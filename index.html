@@ -329,7 +329,9 @@ async function buildSlides(club){
     const secs = Math.max(3, num(r.length, CONFIG.DEFAULT_SECONDS));
     const link = String(r.link || "").trim(), fname = String(r.filename || "").trim();
     if (type.startsWith("ladder")){
-      if (link) slides.push({ kind: "ladder", url: link, ladderName: fname, secs });
+      const url = ladderUrl(link);
+      if (url) slides.push({ kind: "ladder", url, ladderName: fname, secs });
+      else if (link) warn(`Ladder "${link}" isn't a grade ID or ladder link — skipped.`);
     } else if (type === "sponsor" || type === "image"){
       let src, alt = null;
       const dId = driveFileIdOf(link);
@@ -360,6 +362,15 @@ function loadImg(src, ms = 20000){
 async function loadAny(src, alt){ try { return await loadImg(src); } catch (e){ if (alt) return await loadImg(alt); throw e; } }
 
 /* ---------- ladder ---------- */
+// Accepts a bare grade ID (e.g. 6075bd49-a742-47b9-8172-be5248dcf113), a full API link,
+// or any PlayHQ / cricket.com.au link that contains the grade ID.
+const GUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+function ladderUrl(v){
+  v = String(v || "").trim();
+  if (/^https?:\/\/grassrootsapiproxy\.cricket\.com\.au\//i.test(v)) return v;
+  const m = v.match(/grades?\/([0-9a-f-]{36})/i) || v.match(GUID);
+  return m ? `https://grassrootsapiproxy.cricket.com.au/fixturesladders/grades/${(m[1] || m[0]).toLowerCase()}/ladders?jsconfig=eccn%3Atrue` : "";
+}
 const ladderCache = new Map();
 async function getLadder(url){
   const hit = ladderCache.get(url);
