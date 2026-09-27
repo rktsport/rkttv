@@ -22,6 +22,8 @@
         Gallery:     Link = a Google Drive folder link (shared "Anyone with the link: Viewer");
                      Details = how many images to show at once (default 1). Shows the next set each rotation.
         Honours:     Link = tab name (or link to a tab); Filename = title. One page per rotation.
+        Live Score:  Link = a grade ID (or link containing it). Full-screen scoreboard: the club's game on top in detail,
+                     other live games in the grade as tiles below. Skipped when nothing is live. Updates while on screen.
         YouTube:     Link = any YouTube link (watch, youtu.be, shorts, embed; &t= start time is used).
                      Length = seconds to play (blank = whole video, up to YOUTUBE_MAX_MINUTES).
                      Details = "sound" to try playing with sound (TVs usually need a click on the page first).
@@ -205,6 +207,59 @@
   .g-grid.one .g-tile{border-radius:0;box-shadow:none;background:none}
   .g-tile .blur{position:absolute;inset:-8%;background-size:cover;background-position:center;filter:blur(2.4rem) brightness(.45) saturate(1.2)}
   .g-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  /* Live Score scoreboard (sizes in em so the whole board can scale to fit) */
+  .livescore{--k:1;--e:calc(1rem * var(--k));font-size:var(--e);padding:1.4em 2em 1.2em;display:flex;flex-direction:column;gap:1.1em}
+  .lb-top{flex:0 0 auto;display:flex;flex-direction:column;gap:1em;padding:1.3em 1.8em;border-radius:1.1em;
+    background:linear-gradient(180deg,rgba(var(--c1d),.95),rgba(0,0,0,.45));border-top:.4em solid rgb(var(--c2));box-shadow:0 1em 2.5em rgba(0,0,0,.45)}
+  .livescore.solo .lb-top{flex:1;justify-content:space-evenly}
+  .lb-head{display:flex;align-items:center;gap:1em;font:600 1.35em/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--accent))}
+  .lb-head .tk-badge{font-size:1em}
+  .lb-head .sp{margin-left:auto;color:var(--muted)}
+  .lb-main{display:flex;align-items:center;gap:1.6em}
+  .lb-logo{width:5.6em;height:5.6em;border-radius:50%;background:#fff;object-fit:contain;padding:.25em;flex:0 0 auto}
+  .lb-tname{font:800 2.7em/1 var(--cond);text-transform:uppercase;letter-spacing:.02em}
+  .lb-score{font:800 7.2em/.9 var(--cond);letter-spacing:.01em;font-variant-numeric:tabular-nums}
+  .lb-overs{font:600 2.1em/1 var(--cond);color:rgba(255,255,255,.75);margin-left:.3em}
+  .lb-opp{margin-left:auto;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:.35em}
+  .lb-opp .n{font:700 1.9em/1 var(--cond);text-transform:uppercase;color:rgba(255,255,255,.8);display:flex;align-items:center;gap:.5em}
+  .lb-opp .n img{width:1.6em;height:1.6em;border-radius:50%;background:#fff;object-fit:contain}
+  .lb-opp .s{font:800 3.2em/1 var(--cond)}
+  .lb-opp .t{font:700 1.9em/1 var(--cond);color:rgb(var(--accent));text-transform:uppercase;letter-spacing:.04em}
+  .lb-result{font:700 2.4em/1.1 var(--cond);text-transform:uppercase;letter-spacing:.04em;color:#fff;background:rgba(var(--c2),.85);padding:.35em .8em;border-radius:.3em;align-self:flex-start}
+  .lb-stats{display:flex;flex-wrap:wrap;gap:.7em}
+  .lb-stat{background:rgba(255,255,255,.08);border-radius:.5em;padding:.45em .9em;font:500 1.45em/1.15 "Barlow",sans-serif;color:rgba(255,255,255,.8)}
+  .lb-stat b{color:#fff;font-weight:700}
+  .lb-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:1.4em}
+  .lb-tbl{display:flex;flex-direction:column;gap:.35em}
+  .lb-tbl .h,.lb-tbl .r{display:grid;align-items:center;column-gap:calc(var(--e)*.6);padding:.35em .8em;border-radius:.4em}
+  .lb-tbl.bat .h,.lb-tbl.bat .r{grid-template-columns:minmax(0,1fr) calc(var(--e)*5) calc(var(--e)*4) calc(var(--e)*3.4) calc(var(--e)*3.4) calc(var(--e)*6.2)}
+  .lb-tbl.bowl .h,.lb-tbl.bowl .r{grid-template-columns:minmax(0,1fr) calc(var(--e)*4) calc(var(--e)*3) calc(var(--e)*4) calc(var(--e)*3) calc(var(--e)*4.8)}
+  .lb-tbl .h{font:600 1.1em/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .lb-tbl .h span:not(:first-child),.lb-tbl .r span:not(:first-child){text-align:center}
+  .lb-tbl .r{background:rgba(255,255,255,.06);font:500 1.7em/1.1 "Barlow",sans-serif}
+  .lb-tbl .r span:first-child{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb-tbl .r .big{font:800 1.2em/1 var(--cond)}
+  .lb-tbl .r.on{background:rgba(var(--c2),.55);box-shadow:inset .25em 0 0 rgb(var(--accent))}
+  .lb-tbl .r.dim{opacity:.7;font-size:1.45em}
+  .lb-balls{display:flex;align-items:center;gap:.4em;flex-wrap:nowrap;overflow:hidden}
+  .lb-balls .lbl{font:600 1.15em/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-right:.4em;white-space:nowrap}
+  .ball{flex:0 0 auto;min-width:2.6em;height:2.6em;padding:0 .35em;border-radius:1.3em;display:grid;place-items:center;font:700 1.3em/1 var(--cond);background:rgba(255,255,255,.14);color:#fff}
+  .ball.dot{color:rgba(255,255,255,.55)}
+  .ball.four{background:#1f6fd1}.ball.six{background:#7b2cbf}.ball.w{background:#d7263d}.ball.x{background:#b86e00}
+  .ov-sep{flex:0 0 auto;font:600 1em/1 var(--cond);color:var(--muted);padding:0 .3em;border-left:.12em solid rgba(255,255,255,.2);margin-left:.3em;white-space:nowrap}
+  .lb-others{flex:1;min-height:0;display:grid;gap:1em;grid-template-columns:repeat(var(--cols),minmax(0,1fr));grid-template-rows:repeat(var(--rows),minmax(0,1fr))}
+  .lb-bar{display:flex;align-items:center;gap:1em;font:600 1.35em/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--accent))}
+  .lb-tile{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:.45em;padding:.9em 1.2em;border-radius:.9em;background:rgba(255,255,255,.06);border-left:.3em solid rgba(var(--c2),.85)}
+  .lb-trow{display:flex;align-items:center;gap:.6em;font:600 1.6em/1.1 "Barlow",sans-serif;color:rgba(255,255,255,.75);min-width:0}
+  .lb-trow.bat{color:#fff}
+  .lb-trow img{width:1.5em;height:1.5em;border-radius:50%;background:#fff;object-fit:contain;flex:0 0 auto}
+  .lb-trow .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb-trow b{margin-left:auto;font:800 1.35em/1 var(--cond);white-space:nowrap}
+  .lb-trow b small{font:600 .6em var(--cond);color:var(--muted);margin-left:.3em}
+  .lb-pl{font:500 1.3em/1.3 "Barlow",sans-serif;color:rgba(255,255,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb-pl i{font-style:normal;font:600 .85em var(--cond);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:.3em}
+  .lb-pl b{color:#fff}
+
   /* YouTube */
   .youtube{background:#000}
   .youtube .yt-box{position:absolute;inset:0}
@@ -214,6 +269,43 @@
   .paused{position:fixed;top:14px;right:14px;z-index:6;font:700 14px "Barlow",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:8px 14px;border-radius:99px;background:rgba(215,38,61,.92);color:#fff;display:none}
   body.is-paused .paused{display:block}
   html.fixed .paused{right:auto;left:calc(var(--W) - 140px)}
+
+  /* Setup guide (club list page) */
+  .guide{max-width:1200px;margin:64px auto 0;border-top:1px solid rgba(255,255,255,.1);padding-top:40px}
+  .guide>h2{font:800 clamp(30px,4vw,44px)/1 var(--cond);text-transform:uppercase;letter-spacing:.01em}
+  .guide>.lead{color:var(--muted);font-size:16px;line-height:1.55;max-width:760px;margin:12px 0 26px}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:34px}
+  .toc a{font:600 14px "Barlow",sans-serif;padding:7px 13px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);text-decoration:none;color:#fff}
+  .toc a:hover{background:rgba(255,255,255,.14)}
+  .gsec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:28px;align-items:start;padding:28px 0;border-bottom:1px solid rgba(255,255,255,.08);scroll-margin-top:20px}
+  .gsec.wide{grid-template-columns:minmax(0,1fr)}
+  .gsec>div{min-width:0}
+  .gsec h3{font:800 28px/1 var(--cond);text-transform:uppercase;letter-spacing:.02em;display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .gsec h3 code{font:600 14px ui-monospace,Consolas,monospace;text-transform:none;letter-spacing:0;background:rgba(var(--c2),.35);border:1px solid rgba(255,255,255,.2);padding:4px 9px;border-radius:6px;color:#fff}
+  .gsec p,.gsec li{color:rgba(243,244,248,.8);font-size:15.5px;line-height:1.55}
+  .gsec ul{margin:8px 0 0 18px}
+  .gsec li{margin:3px 0}
+  .gsec b,.gsec strong{color:#fff}
+  .fields{width:100%;border-collapse:collapse;margin:14px 0 4px;font-size:14.5px}
+  .fields th,.fields td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top;line-height:1.45}
+  .fields th{width:92px;color:rgb(var(--accent));font:700 13px var(--cond);letter-spacing:.12em;text-transform:uppercase;padding-top:10px}
+  .fields td{color:rgba(243,244,248,.85);overflow-wrap:anywhere}
+  .fields td i{color:var(--muted)}
+  .ex-wrap{overflow-x:auto;margin-top:12px;border-radius:8px;border:1px solid rgba(255,255,255,.14)}
+  .ex{border-collapse:collapse;font:13px/1.35 Arial,sans-serif;min-width:100%;background:#fff;color:#1f1f1f}
+  .ex th{background:#f1f3f4;color:#5f6368;font-weight:600;padding:5px 9px;border:1px solid #dadce0;text-align:left;white-space:nowrap}
+  .ex td{padding:5px 9px;border:1px solid #e3e3e3;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  .ex td.hl{background:#e8f0fe;font-weight:600}
+  .ex .rn{background:#f1f3f4;color:#5f6368;text-align:center;width:28px}
+  .ex b{color:#1f1f1f}
+  .pv{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.12);background:#000}
+  .pv-in{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;transform:scale(var(--s,.4))}
+  .pv-in .backdrop,.pv-in .tv{position:absolute}
+  .pv-in .tk-track{animation:none}
+  .pv-cap{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
+  .kbd{display:inline-block;font:600 12px ui-monospace,monospace;padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)}
+  @media (max-width:860px){ .gsec{grid-template-columns:minmax(0,1fr)} }
+  @media (max-width:600px){ .menu-wrap{padding-left:16px;padding-right:16px} }
 
   /* RKT Sport branding */
   .brand{display:flex;align-items:center;gap:20px}
@@ -276,6 +368,7 @@ const CONFIG = {
   GOOGLE_API_KEY: "AIzaSyC-i38xOyYQItTkBf7XbgQBQM0xVolgCCQ",
   DEFAULT_SECONDS: 10,     // used when Length is blank
   YOUTUBE_MAX_MINUTES: 10, // longest a YouTube slide plays when Length is blank
+  LIVESCORE_RECENT_BALLS: 20, // recent balls shown on the Live Score board
   GALLERY_MAX: 24,         // most images a Gallery slide will show at once
   IMAGE_STORE_MB: 400,     // images kept on this device between visits (least-recently-shown are dropped first).
                            // The browser may allow less on small devices; 0 turns the store off.
@@ -489,6 +582,10 @@ async function buildSlides(club){
         src = driveImg(f.id); alt = driveImgAlt(f.id);
       }
       slides.push({ kind: type, src, alt, secs, details: String(r.details || r.detail || "").trim() });
+    } else if (type === "livescore" || type === "livescores" || type === "scoreboard"){
+      const g = (link.match(GUID) || [])[0];
+      if (!g) { warn(`Live Score: "${link}" doesn't contain a grade ID — skipped.`); continue; }
+      slides.push({ kind: "livescore", grade: g.toLowerCase(), secs });
     } else if (type === "youtube" || type === "video"){
       const v = youtubeInfo(link);
       if (!v) { warn(`YouTube: "${link}" isn't a YouTube link — skipped.`); continue; }
@@ -918,6 +1015,12 @@ async function makeSlide(s, club, stage, page){
     el.innerHTML = honoursHTML({ ...s, ...pg }, club); stage.appendChild(el);
     await Promise.all([...el.querySelectorAll("img")].map(i => i.complete ? 0 : new Promise(r => { i.addEventListener("load", r); i.addEventListener("error", () => setTimeout(r, 0)); setTimeout(r, 8000); })));
     fitHonours(el);
+  } else if (s.kind === "livescore"){
+    stage.appendChild(el);
+    try { await renderBoard(el, s, club); } catch (e){ el.remove(); throw e; }
+    // keep it updating while it's on screen
+    const iv = setInterval(() => renderBoard(el, s, club).catch(e => warn("Scoreboard: " + e.message)), CONFIG.TICKER_LIVE_REFRESH_SECONDS * 1000);
+    el._stop = () => clearInterval(iv);
   } else if (s.kind === "youtube"){
     stage.appendChild(el);
     try { await makeYouTube(s, el); }
@@ -1130,6 +1233,174 @@ function startTicker(club, bar){
   })();
 }
 
+/* ---------- Live Score scoreboard ---------- */
+const oversToBalls = o => { const [a, b] = String(o ?? 0).split("."); return (parseInt(a) || 0) * 6 + (parseInt(b) || 0); };
+const runRate = (runs, overs) => { const b = oversToBalls(overs); return b ? (runs * 6 / b).toFixed(2) : "–"; };
+const isLimited = m => /one\s*day|t20|twenty|limited|\bod\b|\bday\b(?!s)/i.test(String(m.matchType || "")) && !/two|2\s*day|multi/i.test(String(m.matchType || ""));
+const orgOf = t => String(t?.owningOrganisation?.id || "").toLowerCase();
+
+async function liveBoardData(gradeId, club){
+  const list = (await apiJSON(`${API}/scores/grades/${gradeId}/matches?${Q}`, d => Array.isArray(d.matches))).matches;
+  const now = Date.now();
+  const liveOf = m => { const st = String(m.status || ""), bat = (m.teams || []).some(t => t.isBatting), started = firstDay(m) && firstDay(m) <= now;
+    return !FINAL.test(st) && !(PRE.test(st) && !bat) && (started || bat); };
+  const mine = m => (m.teams || []).some(t => club.pcId ? orgOf(t) === club.pcId : String(t.displayName || "").toLowerCase().startsWith(club.name.toLowerCase()));
+  const live = list.filter(liveOf);
+  let featured = live.find(mine);
+  // Club's game finished in the last few hours: keep it on top with the result
+  if (!featured) featured = list.filter(m => mine(m) && FINAL.test(String(m.status || "")) && now - lastDay(m) < 12 * 3600e3 && lastDay(m) <= now).sort((a, b) => lastDay(b) - lastDay(a))[0];
+  const others = live.filter(m => m !== featured);
+  if (!featured && !others.length) throw new Error("no live games in this grade right now");
+  const card = id => apiJSON(`${API}/scores/matches/${id}?responseModifier=includeScorecard&${Q}`, d => d && d.id).catch(e => { warn("Scorecard: " + e.message); return null; });
+  const [fCard, fBalls, ...oCards] = await Promise.all([
+    featured ? card(featured.id) : null,
+    featured ? apiJSON(`${API}/scores/matches/${featured.id}/balls?${Q}`, d => d && Array.isArray(d.innings)).catch(() => null) : null,
+    ...others.map(m => card(m.id))
+  ]);
+  const gradeName = fCard?.grade?.name || oCards.find(Boolean)?.grade?.name || "";
+  return { gradeName, featured, fCard, fBalls, featuredLive: featured ? liveOf(featured) : false, others: others.map((m, i) => ({ m, card: oCards[i] })) };
+}
+
+function currentInnings(card, m){
+  const inns = (card?.innings || []).slice().sort((a, b) => (a.inningsOrder ?? a.inningsNumber ?? 0) - (b.inningsOrder ?? b.inningsNumber ?? 0));
+  const batTeam = (card?.matchSummary?.teams || card?.teams || m.teams || []).find(t => t.isBatting);
+  return { inns, cur: (batTeam && [...inns].reverse().find(i => i.battingTeamId === batTeam.id)) || inns[inns.length - 1] || null };
+}
+function teamScores(card, m){
+  const base = m.teams || [], sum = card?.matchSummary?.teams || card?.teams || [];
+  return base.map(t => { const u = sum.find(x => x.id === t.id) || {}; return { ...t, scoreText: u.scoreText ?? t.scoreText, isBatting: u.isBatting ?? t.isBatting, isWinner: u.isWinner ?? t.isWinner }; });
+}
+function ballChip(b){
+  const out = !!(b.dismissedParticipantId || /\bW\b|^W/.test(b.shortDescription || ""));
+  let cls = "", txt = String(b.shortDescription || "").trim();
+  if (out) cls = "w";
+  else if (b.wides || b.noBalls) cls = "x";
+  else if (b.byes || b.legByes) cls = "x";
+  else if (b.runsBat === 6) cls = "six";
+  else if (b.runsBat === 4) cls = "four";
+  else if (!b.runsBat) cls = "dot";
+  if (!txt || txt === ".") txt = out ? "W" : (b.wides ? b.wides + "wd" : b.noBalls ? "nb" : (b.runsBat || 0) === 0 && !b.byes && !b.legByes ? "•" : String(b.runsBat || (b.byes ? b.byes + "b" : b.legByes + "lb")));
+  return `<span class="ball ${cls}">${esc(txt)}</span>`;
+}
+function boardTop(d, club){
+  const m = d.featured, card = d.fCard, live = d.featuredLive;
+  const { inns, cur } = currentInnings(card, m);
+  const teams = teamScores(card, m);
+  const batT = teams.find(t => t.id === cur?.battingTeamId) || teams.find(t => t.isBatting) || teams.find(t => orgOf(t) === club.pcId) || teams[0];
+  const bowlT = teams.find(t => t !== batT);
+  const logo = t => t?.owningOrganisation?.logoUrl ? `<img src="${esc(t.owningOrganisation.logoUrl)}" alt="" onerror="this.style.visibility='hidden'">` : "";
+  const runs = cur?.runsScored ?? null, wk = cur?.numberOfWicketsFallen ?? null, ov = cur?.oversBowled ?? null;
+  const scoreBig = runs !== null ? `${wk >= 10 ? runs : `${wk}-${runs}`}` : (batT?.scoreText || "–");
+  // balls for the current innings
+  const bInnsAll = d.fBalls?.innings || [];
+  const bInn = bInnsAll.find(i => cur && i.id === cur.id) || [...bInnsAll].reverse().find(i => cur && i.battingTeamId === cur.battingTeamId) || [...bInnsAll].reverse().find(i => (i.balls || []).length);
+  const balls = bInn?.balls || [];
+  const last = balls[balls.length - 1];
+  // batters / bowler
+  const pl = card ? livePlayers(card, m) : null;
+  let crease = pl?.crease || [];
+  if (!crease.length && last) crease = [
+    { playerShortName: last.strikerShortName, runsScored: last.strikerRunsScored, ballsFaced: last.strikerBallsFaced, isOnStrike: true },
+    { playerShortName: last.nonStrikerShortName, runsScored: last.nonStrikerRunsScored, ballsFaced: last.nonStrikerBallsFaced }].filter(x => x.playerShortName);
+  const bowling = cur?.bowling || [];
+  const byId = id => bowling.find(b => b.participantId === id);
+  let bowler = pl?.bowler || (last && (byId(last.bowlerParticipantId) || { playerShortName: last.bowlerShortName }));
+  // other end: bowler of the previous over
+  let otherEnd = null;
+  if (last){ const prevOver = [...balls].reverse().find(b => b.overNumber < last.overNumber); if (prevOver && prevOver.bowlerParticipantId !== (bowler?.participantId || last.bowlerParticipantId)) otherEnd = byId(prevOver.bowlerParticipantId) || { playerShortName: prevOver.bowlerShortName }; }
+  // partnership, last wicket, this over
+  let lastWkIdx = -1; balls.forEach((b, i) => { if (b.dismissedParticipantId) lastWkIdx = i; });
+  const startRuns = lastWkIdx >= 0 ? balls[lastWkIdx].progressRuns : 0;
+  const pBalls = balls.slice(lastWkIdx + 1).filter(b => !b.wides && !b.noBalls).length;
+  const pRuns = last ? (last.progressRuns ?? 0) - (startRuns ?? 0) : null;
+  let lastWk = "";
+  if (lastWkIdx >= 0){
+    const w = balls[lastWkIdx], who = (cur?.batting || []).find(x => x.participantId === w.dismissedParticipantId);
+    lastWk = `${esc(who?.playerShortName || "")}${who ? ` ${esc(who.runsScored)} (${esc(who.ballsFaced)})` : ""} · ${esc(w.progressScore || "")}${who?.dismissalText ? ` · ${esc(who.dismissalText)}` : ""}`;
+  }
+  const overBalls = last ? balls.filter(b => b.overNumber === last.overNumber) : [];
+  const overRuns = overBalls.reduce((a, b) => a + (b.runsBat || 0) + (b.wides || 0) + (b.noBalls || 0) + (b.byes || 0) + (b.legByes || 0) + (b.penaltyRuns || 0), 0);
+  // chase / lead
+  let chase = "";
+  if (runs !== null && bowlT){
+    const oppRuns = inns.filter(i => i.battingTeamId === bowlT.id).reduce((a, i) => a + (i.runsScored || 0), 0);
+    const myRuns = inns.filter(i => i.battingTeamId === batT.id).reduce((a, i) => a + (i.runsScored || 0), 0);
+    const oppDone = inns.some(i => i.battingTeamId === bowlT.id);
+    if (isLimited(m) && oppDone && inns.indexOf(cur) > 0){ const need = oppRuns + 1 - runs; chase = need > 0 ? `Target ${oppRuns + 1} · Need ${need}` : ""; }
+    else if (oppDone){ const diff = myRuns - oppRuns; chase = diff >= 0 ? `Lead by ${diff}` : `Trail by ${-diff}`; }
+  }
+  const extras = cur?.totalExtras;
+  const toss = (card?.matchSummary?.teams || []).find(t => t.wonToss);
+  const recent = balls.slice(-CONFIG.LIVESCORE_RECENT_BALLS);
+  let ballsHTML = "", prevOv = null;
+  recent.forEach(b => { if (b.overNumber !== prevOv){ ballsHTML += `<span class="ov-sep">Ov ${b.overNumber + 1}</span>`; prevOv = b.overNumber; } ballsHTML += ballChip(b); });
+  const batRow = b => `<div class="r${b.isOnStrike ? " on" : ""}"><span>${b.isOnStrike ? "▸ " : ""}${esc(b.playerShortName || "")}</span><span class="big">${esc(b.runsScored ?? 0)}*</span><span>${esc(b.ballsFaced ?? 0)}</span><span>${esc(b.foursScored ?? "–")}</span><span>${esc(b.sixesScored ?? "–")}</span><span>${esc(b.strikeRate ?? (b.ballsFaced ? (b.runsScored * 100 / b.ballsFaced).toFixed(1) : "–"))}</span></div>`;
+  const bowlRow = (b, dim) => b ? `<div class="r${dim ? " dim" : " on"}"><span>${esc(b.playerShortName || "")}</span><span>${esc(b.oversBowled ?? "–")}</span><span>${esc(b.maidensBowled ?? "–")}</span><span>${esc(b.runsConceded ?? "–")}</span><span class="big">${esc(b.wicketsTaken ?? "–")}</span><span>${esc(b.economy ?? "–")}</span></div>` : "";
+  const round = m.round?.name || "", venue = m.venue?.name || "";
+  const days = (m.matchSchedule || []).length, today = dayKey(Date.now());
+  const dayNo = days > 1 ? (m.matchSchedule.findIndex(x => dayKey(Date.parse(x.startDateTime)) === today) + 1 || null) : null;
+  return `
+    <div class="lb-top">
+      <div class="lb-head">${live ? `<span class="tk-badge live">Live</span>` : `<span class="tk-badge draw">Result</span>`}<span>${esc([d.gradeName && titleCase(d.gradeName), round].filter(Boolean).join(" · "))}</span>
+        <span class="sp">${esc([dayNo ? `Day ${dayNo} of ${days}` : "", venue].filter(Boolean).join(" · "))}</span></div>
+      <div class="lb-main">
+        ${logo(batT).replace("<img", '<img class="lb-logo"')}
+        <div><div class="lb-tname">${esc(batT?.displayName || "")}</div>
+          <div><span class="lb-score">${esc(scoreBig)}</span>${ov !== null ? `<span class="lb-overs">(${esc(ov)} ov)</span>` : ""}</div></div>
+        ${bowlT ? `<div class="lb-opp"><div class="n">${logo(bowlT)}${esc(bowlT.displayName || "")}</div>${bowlT.scoreText ? `<div class="s">${esc(bowlT.scoreText)}</div>` : ""}${chase && live ? `<div class="t">${esc(chase)}</div>` : ""}</div>` : ""}
+      </div>
+      ${!live && (card?.matchSummary?.resultText || m.resultText) ? `<div class="lb-result">${esc(card?.matchSummary?.resultText || m.resultText)}</div>` : ""}
+      ${live ? `<div class="lb-stats">
+        ${ov !== null && runs !== null ? `<div class="lb-stat">Run rate <b>${runRate(runs, ov)}</b></div>` : ""}
+        ${pRuns !== null ? `<div class="lb-stat">Partnership <b>${esc(pRuns)}</b> (${pBalls})</div>` : ""}
+        ${last ? `<div class="lb-stat">This over <b>${overRuns}</b></div>` : ""}
+        ${extras != null ? `<div class="lb-stat">Extras <b>${esc(extras)}</b></div>` : ""}
+        ${lastWk ? `<div class="lb-stat">Last wkt <b>${lastWk}</b></div>` : ""}
+        ${toss && (toss.displayName || teams.find(t => t.id === toss.id)) ? `<div class="lb-stat">Toss <b>${esc(toss.displayName || teams.find(t => t.id === toss.id).displayName)}</b></div>` : ""}
+      </div>
+      <div class="lb-grid">
+        <div class="lb-tbl bat"><div class="h"><span>Batting</span><span>R</span><span>B</span><span>4s</span><span>6s</span><span>SR</span></div>${crease.map(batRow).join("") || `<div class="r"><span>–</span></div>`}</div>
+        <div class="lb-tbl bowl"><div class="h"><span>Bowling</span><span>O</span><span>M</span><span>R</span><span>W</span><span>Econ</span></div>${bowlRow(bowler) + bowlRow(otherEnd, true) || `<div class="r"><span>–</span></div>`}</div>
+      </div>
+      ${recent.length ? `<div class="lb-balls"><span class="lbl">Last ${recent.length}</span>${ballsHTML}</div>` : ""}` : ""}
+    </div>`;
+}
+function boardTile(o){
+  const m = o.m, card = o.card, teams = teamScores(card, m), { cur } = currentInnings(card, m);
+  const pl = card ? livePlayers(card, m) : null;
+  const row = t => `<div class="lb-trow${t.isBatting ? " bat" : ""}">${t.owningOrganisation?.logoUrl ? `<img src="${esc(t.owningOrganisation.logoUrl)}" alt="" onerror="this.style.visibility='hidden'">` : ""}<span class="nm">${esc(t.displayName || "")}</span><b>${esc(t.scoreText || "–")}${t.isBatting ? "*" : ""}${t.isBatting && cur?.battingTeamId === t.id && cur?.oversBowled != null ? `<small>(${esc(cur.oversBowled)})</small>` : ""}</b></div>`;
+  const bats = (pl?.crease || []).map(b => `${esc(b.playerShortName || "")} <b>${esc(b.runsScored ?? 0)}*</b> (${esc(b.ballsFaced ?? 0)})`).join(" · ");
+  const w = pl?.bowler;
+  return `<div class="lb-tile">${teams.map(row).join("")}
+    ${bats ? `<div class="lb-pl"><i>Bat</i>${bats}</div>` : ""}
+    ${w ? `<div class="lb-pl"><i>Bowl</i>${esc(w.playerShortName || "")} <b>${esc(w.wicketsTaken ?? 0)}/${esc(w.runsConceded ?? 0)}</b> (${esc(w.oversBowled ?? 0)})</div>` : ""}</div>`;
+}
+function boardHTML(d, club){
+  const n = d.others.length, solo = !!d.featured && !n;
+  let rows, cols;
+  if (d.featured){ rows = n <= 4 ? 1 : 2; cols = Math.max(1, Math.ceil(n / rows)); }
+  else {   // tiles only: pick the grid that gives the widest-looking tiles (about 2.2 : 1)
+    let best = 0; rows = 1; cols = n || 1;
+    for (let c = 1; c <= Math.max(1, n); c++){ const r = Math.ceil(n / c), w = 100 / c, h = 45 / r, sz = Math.min(w, h * 2.2); if (sz > best){ best = sz; rows = r; cols = c; } }
+  }
+  const head = !d.featured ? `<div class="lb-bar"><span class="tk-badge live">Live</span><span>${esc([d.gradeName && titleCase(d.gradeName), d.others[0]?.m.round?.name].filter(Boolean).join(" · "))}</span></div>` : "";
+  return { solo, html: `${head}${d.featured ? boardTop(d, club) : ""}${n ? `<div class="lb-others" style="--cols:${cols};--rows:${rows}">${d.others.map(boardTile).join("")}</div>` : ""}` };
+}
+function fitBoard(el){
+  let k = el.querySelector(".lb-top") ? 1.15 : 2.2; el.style.setProperty("--k", k);
+  const outside = box => { const r = box.getBoundingClientRect(); return [...box.children].some(c => { const q = c.getBoundingClientRect(); return q.top < r.top - 1 || q.bottom > r.bottom + 1; }); };
+  const clipped = sel => [...el.querySelectorAll(sel)].some(n => n.scrollWidth > n.clientWidth + 1);
+  const over = () => el.scrollHeight > el.clientHeight + 1 || outside(el) || [...el.querySelectorAll(".lb-tile")].some(outside)
+    || clipped(".lb-trow") || clipped(".lb-trow .nm") || clipped(".lb-pl") || clipped(".lb-tbl .r span:first-child");
+  while (k > 0.5 && over()){ k -= 0.03; el.style.setProperty("--k", k); }
+}
+async function renderBoard(el, s, club){
+  const d = await liveBoardData(s.grade, club);
+  const b = boardHTML(d, club);
+  el.classList.toggle("solo", b.solo);
+  el.innerHTML = b.html; fitBoard(el);
+}
+
 /* ---------- screens ---------- */
 function notice(title, msg, back){
   app.innerHTML = `<div class="backdrop"></div><div class="notice"><div class="box"><h2>${esc(title)}</h2><p>${esc(msg)}</p>${back ? `<a href="${esc(location.pathname)}">‹ Back to club list</a>` : ""}</div></div>`;
@@ -1148,6 +1419,193 @@ const rktLogo = () => rktLogoSrc
   ? `<img src="${esc(rktLogoSrc)}" alt="RKT Sport" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'txt',textContent:'RKT SPORT'}))">`
   : `<div class="txt">RKT SPORT</div>`;
 
+/* ---------- Setup guide ---------- */
+const svgUri = svg => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+const badge = (t, bg, fg = "#fff") => svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="${bg}"/><circle cx="50" cy="50" r="40" fill="none" stroke="${fg}" stroke-width="3" opacity=".6"/><text x="50" y="62" font-family="Arial,sans-serif" font-weight="700" font-size="32" text-anchor="middle" fill="${fg}">${t}</text></svg>`);
+const photo = (h1, h2, label) => svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${h1}"/><stop offset="1" stop-color="${h2}"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><circle cx="880" cy="230" r="110" fill="#fff" opacity=".55"/><path d="M0 610 Q300 470 600 590 T1200 540 V800 H0Z" fill="#1d5c2e"/><path d="M0 690 Q400 590 800 680 T1200 650 V800 H0Z" fill="#2f7d3f"/><text x="60" y="110" font-family="Arial" font-weight="700" font-size="64" fill="#fff" opacity=".85">${label}</text></svg>`);
+const sponsorSvg = svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360"><rect width="900" height="360" fill="#fff"/><circle cx="170" cy="180" r="120" fill="#0b5fa5"/><path d="M110 210 L170 110 L230 210Z" fill="#fff"/><text x="320" y="170" font-family="Arial" font-weight="800" font-size="86" fill="#0b2545">YOUR</text><text x="320" y="265" font-family="Arial" font-weight="800" font-size="86" fill="#0b5fa5">SPONSOR</text></svg>`);
+const personSvg = (bg) => svgUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="${bg}"/><circle cx="100" cy="80" r="42" fill="#f1d2b6"/><path d="M28 200 Q30 130 100 128 Q170 130 172 200Z" fill="#fff"/></svg>`);
+
+// Sample data (drawn with the real slide code)
+function sampleLadder(){
+  const t = [["Elwood 1",57,1.03,9,2,1,"EL","#0b3d91"],["Omega 1",54,0.715,9,3,0,"OM","#040451"],["Mackie 1",51,0.666,8,3,1,"MA","#0a6b3a"],["Cluden 1",42,0.399,6,4,2,"CL","#6b0a0a"],["Cheltenham Park 1",33,-0.052,5,6,1,"CP","#8a6d00"],["Carnegie South 1",24,-0.511,3,7,1,"CS","#3b0a6b"],["CHAG 1",18,-0.748,2,8,1,"CH","#0a5a6b"],["Hampton Central 1",9,-1.425,1,10,1,"HC","#444"]];
+  const cols = ["played","competitionPoints","netRunRate","won","lost","noResults"].map(id => ({ id }));
+  return { t: Date.now(), data: { grade: { name: "B. Woolnough Shield", organisation: { name: "South East Cricket Association", logoUrl: badge("SECA", "#12324f") } },
+    ladders: [{ name: "Overall", columns: cols, pools: [{ teams: t.map((x, i) => ({ displayName: x[0], rank: i + 1, owningOrganisation: { id: x[0] === "Omega 1" ? "demo-club" : "o" + i, logoUrl: badge(x[6], x[7]) },
+      ladderData: [{ id: "played", val: 12 }, { id: "competitionPoints", val: x[1] }, { id: "netRunRate", val: x[2] }, { id: "won", val: x[3] }, { id: "lost", val: x[4] }, { id: "noResults", val: x[5] }] })) }] }] } };
+}
+function sampleBoard(){
+  const T = (id, name, score, bat, org, logo) => ({ id, displayName: name, scoreText: score, isBatting: !!bat, owningOrganisation: { id: org, logoUrl: logo } });
+  const now = Date.now(), iso = d => new Date(d).toISOString();
+  const mk = (id, a, b) => ({ id, status: "IN_PROGRESS", matchType: "One Day", round: { name: "Round 1" }, venue: { name: "Club Oval" }, matchSchedule: [{ startDateTime: iso(now - 3 * 3600e3) }], teams: [a, b] });
+  const bat = (n, id, r, b, f, x, on, non, out) => ({ participantId: id, playerShortName: n, runsScored: r, ballsFaced: b, foursScored: f, sixesScored: x, strikeRate: (r * 100 / b).toFixed(2), dismissalTypeId: out ? 2 : 1, dismissalType: out ? "Caught" : "Not Out", dismissalText: out || "not out", isOnStrike: !!on, isOnNonStrike: !!non });
+  const m = mk("F", T("A", "Your Club 1sts", "4-120", 1, "demo-club", badge("YC", "#040451")), T("B", "Rivals 1sts", "210", 0, "r", badge("RV", "#8a1c1c")));
+  const card = { id: "F", matchSummary: { teams: [{ id: "A", isBatting: true, scoreText: "4-120", wonToss: true, displayName: "Your Club 1sts" }, { id: "B", scoreText: "210" }] },
+    innings: [{ id: "I1", inningsOrder: 1, battingTeamId: "B", runsScored: 210, numberOfWicketsFallen: 10, oversBowled: 38.4 },
+      { id: "I2", inningsOrder: 2, battingTeamId: "A", runsScored: 120, numberOfWicketsFallen: 4, oversBowled: 32.1, totalExtras: 9,
+        batting: [bat("S Dilranga", "p2", 56, 71, 6, 1, 0, 1), bat("M Tooth", "p3", 22, 30, 2, 0, 0, 0, "b: J Regan"), bat("R Regan", "p5", 23, 18, 3, 1, 1, 0)],
+        bowling: [{ participantId: "b1", playerShortName: "D Dervan", oversBowled: 6.1, maidensBowled: 1, runsConceded: 22, wicketsTaken: 2, economy: "3.56", isBowling: true },
+          { participantId: "b2", playerShortName: "J Prosser", oversBowled: 7, maidensBowled: 0, runsConceded: 31, wicketsTaken: 1, economy: "4.43" }] }] };
+  const seq = ["1", ".", "4", ".", "1", "W", ".", ".", "2", "1", "wd", "1", ".", "6", ".", "1", "lb", "4", ".", ".", "1", "2", ".", "4", "1", ".", "1"];
+  let runs = 88, ov = 28, bi = 0; const balls = [];
+  seq.forEach(c => { if (c !== "wd") bi++; if (bi > 6){ ov++; bi = 1; }
+    const b = { overNumber: ov, runsBat: 0, wides: 0, noBalls: 0, byes: 0, legByes: 0, shortDescription: c, bowlerParticipantId: ov % 2 ? "b1" : "b2", bowlerShortName: ov % 2 ? "D Dervan" : "J Prosser" };
+    if (c === "W") b.dismissedParticipantId = "p3"; else if (c === "wd"){ b.wides = 1; b.shortDescription = "1wd"; runs++; } else if (c === "lb"){ b.legByes = 1; b.shortDescription = "1lb"; runs++; } else if (c !== "."){ b.runsBat = +c; runs += +c; }
+    b.progressRuns = runs; b.progressScore = "4-" + runs; balls.push(b); });
+  const other = (id, a, as, b, bs) => { const mm = mk(id, T(id + "a", a, as, 1, "x", badge(a.slice(0, 2).toUpperCase(), "#335")), T(id + "b", b, bs, 0, "y", badge(b.slice(0, 2).toUpperCase(), "#533")));
+    return { m: mm, card: { id, matchSummary: { teams: [{ id: id + "a", isBatting: true, scoreText: as }, { id: id + "b", scoreText: bs }] },
+      innings: [{ battingTeamId: id + "a", oversBowled: 27.3, batting: [bat("A Smith", "a", 34, 40, 4, 0, 1), bat("B Jones", "b", 12, 20, 1, 0, 0, 1)], bowling: [{ playerShortName: "C Brown", oversBowled: 5.3, runsConceded: 25, wicketsTaken: 1, isBowling: true }] }] } }; };
+  return { gradeName: "3 DISTRICT 1STS", featured: m, fCard: card, fBalls: { innings: [{ id: "I2", battingTeamId: "A", balls }] }, featuredLive: true,
+    others: [other("O1", "Skye 1sts", "6-187", "Mt Martha 1sts", ""), other("O2", "Pearcedale 1sts", "2-45", "Ballam Park 1sts", "156"), other("O3", "Rye 1sts", "8-201", "Boneo 1sts", "")] };
+}
+function sampleTicker(){
+  const T = (id, name, score, bat, org, win) => ({ id, displayName: name, scoreText: score, isBatting: !!bat, isWinner: !!win, owningOrganisation: { id: org } });
+  const live = { kind: "live", g: { name: "3 DISTRICT 1STS" }, m: { round: { shortName: "R1" }, teams: [T("a", "Your Club 1sts", "4-120", 1, "demo-club"), T("b", "Rivals 1sts", "210")] },
+    players: { crease: [{ playerShortName: "R Regan", runsScored: 23, ballsFaced: 18, isOnStrike: true }, { playerShortName: "S Dilranga", runsScored: 56, ballsFaced: 71 }], bowler: { playerShortName: "D Dervan", wicketsTaken: 2, runsConceded: 22, oversBowled: 6.1, maidensBowled: 1 } } };
+  live.mine = [live.m.teams[0]];
+  const res = { kind: "result", g: { name: "7 DISTRICT 2NDS" }, m: { round: { shortName: "R1" }, status: "COMPLETED", resultText: "Your Club 2nds won by 6 wickets", teams: [T("c", "Your Club 2nds", "4-156", 0, "demo-club", 1), T("d", "Skye 2nds", "150")] } };
+  res.mine = [res.m.teams[0]];
+  return tickerItemHTML(live, "") + tickerItemHTML(res, "");
+}
+
+const GUIDE_TYPES = [
+  { id: "ladder", type: "Ladder Link", blurb: "A competition ladder drawn straight from PlayHQ / cricket.com.au, with the club's team highlighted.",
+    fields: { Link: "The grade ID (e.g. <i>6075bd49-a742-47b9-8172-be5248dcf113</i>), the full ladder API link, or the play.cricket.com.au grade page link.", Filename: "Optional. Which ladder to show when there are several: <i>Overall</i>, <i>One Day</i>, <i>2 Day+</i>. Blank = the first one.", Length: "Seconds on screen.", Details: "Not used." },
+    row: ["Ladder Link", "2ac3302e-ade0-4e77-9e5b-d2a194a47035", "One Day", 12, ""] },
+  { id: "sponsor", type: "Sponsor", blurb: "A sponsor's logo on a white panel under \"Proudly sponsored by\", with optional text underneath.",
+    fields: { Link: "The logo image: a web image link (e.g. from Wix) or a Google Drive share link.", Details: "Optional text under the logo. Use <b>|</b> for a new line. The first line is shown large (e.g. the sponsor's name).", Length: "Seconds on screen." },
+    row: ["Sponsor", "https://static.wixstatic.com/media/…/logo.png", "", 10, "O'Brien Real Estate | Proud supporters since 2012 | obrien.com.au"] },
+  { id: "image", type: "Image", blurb: "A single full-screen picture: posters, event flyers, team photos. The picture is always shown in full, with a soft blurred fill around it.",
+    fields: { Link: "A web image link or a Google Drive share link (file shared <i>Anyone with the link: Viewer</i>).", Length: "Seconds on screen." },
+    row: ["Image", "https://drive.google.com/file/d/1x7gllt…/view?usp=sharing", "", 10, ""] },
+  { id: "gallery", type: "Gallery", blurb: "Photos from a Google Drive folder. Each time the gallery comes round it shows the next set, so a big folder is worked through over the day. Photos are saved on the device so they aren't downloaded again.",
+    fields: { Link: "A Google Drive <b>folder</b> link, shared <i>Anyone with the link: Viewer</i>. Photos are shown in file-name order.", Details: "How many photos at once (1–24). Blank = 1. The grid arranges itself.", Length: "Seconds each set is on screen." },
+    row: ["Gallery", "https://drive.google.com/drive/folders/1GkeLgn…?usp=sharing", "", 10, 4] },
+  { id: "honours", type: "Honours", blurb: "Honour boards: life members, award winners, premierships, past captains. Long lists are split into pages, and each time the board comes round it shows the next page.",
+    fields: { Link: "The name of a tab in the club's sheet (e.g. <i>Life Members</i>), or a link to a tab in another sheet.", Filename: "Optional title (e.g. <i>2025/26 Club Awards</i>). Blank = the tab name.", Length: "Seconds per page.",
+      "The tab": "Columns (any order): <b>Name</b> (required), <b>No</b>, <b>Year</b> (or Season), <b>Award</b>, <b>Details</b>, <b>Image</b>. With <b>Details</b> you get feature cards; with <b>Image</b> each line gets a photo; otherwise a classic honour board." },
+    row: ["Honours", "Life Members", "", 12, ""], row2: { head: ["No", "Name", "Year"], rows: [[1, "Noel McGaw", 1986], [2, "Jack Hickey", 1986], [3, "Joyce McGaw", 1986]] } },
+  { id: "youtube", type: "YouTube", blurb: "A YouTube video, full screen. Plays muted (browsers only auto-play muted video). Ads may appear on monetised videos.",
+    fields: { Link: "Any YouTube link: watch, youtu.be, Shorts. A start time like <i>&t=90</i> is used.", Length: "Seconds to play. Blank = the whole video (up to 10 minutes).", Details: "Type <i>sound</i> to try playing with sound (TVs usually need a click on the page first)." },
+    row: ["YouTube", "https://www.youtube.com/watch?v=eotz67vqAiQ", "", "", ""] },
+  { id: "livescore", type: "Live Score", blurb: "A full-screen live scoreboard for a grade. The club's game is on top in detail (score, batters, bowlers, partnership, target, last 20 balls); other live games in the grade are tiles below. Updates every 20 seconds. Skipped when nothing is live.",
+    fields: { Link: "The grade ID (or any link containing it).", Length: "Seconds on screen. Use a long time (e.g. 120) if it's the main thing on a scoreboard." },
+    row: ["Live Score", "2ac3302e-ade0-4e77-9e5b-d2a194a47035", "", 60, ""] }
+];
+function exampleTable(head, rows, hl){
+  return `<div class="ex-wrap"><table class="ex"><tr><th class="rn"></th>${head.map((h, i) => `<th>${String.fromCharCode(65 + i)}</th>`).join("")}</tr>
+    <tr><td class="rn">1</td>${head.map(h => `<td><b>${esc(h)}</b></td>`).join("")}</tr>
+    ${rows.map((r, j) => `<tr><td class="rn">${j + 2}</td>${r.map((v, i) => `<td class="${hl && hl.includes(i) ? "hl" : ""}">${esc(v)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+}
+function guideHTML(){
+  const CH = ["Order", "Active", "Type", "Link", "Filename", "Length", "Details"];
+  const sec = g => `
+    <section class="gsec" id="g-${g.id}">
+      <div>
+        <h3>${esc(g.type)} <code>Type = ${esc(g.type)}</code></h3>
+        <p>${esc(g.blurb)}</p>
+        <table class="fields">${Object.entries(g.fields).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`).join("")}</table>
+        ${exampleTable(CH, [[1, 1, ...g.row]], [2, 3, 4, 5, 6])}
+        ${g.row2 ? `<p style="margin-top:12px">The <b>${esc(g.row[1])}</b> tab:</p>${exampleTable(g.row2.head, g.row2.rows)}` : ""}
+      </div>
+      <div><div class="pv" data-pv="${g.id}"></div><div class="pv-cap">Preview with sample data</div></div>
+    </section>`;
+  return `
+  <div class="guide" id="guide">
+    <h2>Setup guide</h2>
+    <p class="lead">Each club's screen is driven by its own Google Sheet: one row per slide, played in <b>Order</b>. Changes show on the TV within about 5 minutes. The previews below are drawn by the same code as the TV, using sample data.</p>
+    <nav class="toc"><a href="#g-sheets">The sheets</a>${GUIDE_TYPES.map(g => `<a href="#g-${g.id}">${esc(g.type)}</a>`).join("")}<a href="#g-auto">Automatic extras</a><a href="#g-controls">Controls</a></nav>
+
+    <section class="gsec wide" id="g-sheets">
+      <div>
+        <h3>The sheets</h3>
+        <p><b>RKT TV Master</b>: one row per club.</p>
+        ${exampleTable(["Club", "Colour1", "Colour2", "Logo", "PlayCricketID", "Sheet", "Folder"], [["Omega", "4,4,81", "115,23,63", "https://static.wixstatic.com/…/LOGO.png", "904cd12d-87d8-eb11-a7ad-2818780da0cc", "https://docs.google.com/spreadsheets/d/…", ""]])}
+        <table class="fields">
+          <tr><th>Colours</th><td>Main and accent colours as <i>R,G,B</i> (e.g. <i>4,4,81</i>) or hex (e.g. <i>#040451</i>). Used for backgrounds, highlights and the bottom bar.</td></tr>
+          <tr><th>Logo</th><td>A web link to the club logo.</td></tr>
+          <tr><th>PlayCricketID</th><td>The club's organisation ID from PlayHQ. Highlights the club on ladders and drives the scores ticker.</td></tr>
+          <tr><th>Sheet</th><td>Link to the club's own sheet (below).</td></tr>
+        </table>
+        <p style="margin-top:18px"><b>Each club's sheet</b>: one row per slide.</p>
+        ${exampleTable(CH, [[1, 1, "Ladder Link", "2ac3302e-ade0-4e77-9e5b-d2a194a47035", "", 12, ""], [2, 1, "Sponsor", "https://static.wixstatic.com/…/sponsor.png", "", 10, "Sponsor name | Tagline"], [3, 0, "Image", "https://drive.google.com/file/d/…/view", "", 10, ""]])}
+        <table class="fields">
+          <tr><th>Order</th><td>Play order (1, 2, 3…).</td></tr>
+          <tr><th>Active</th><td><b>1</b> to show, <b>0</b> (or blank) to hide without deleting the row.</td></tr>
+          <tr><th>Type</th><td>One of the types below.</td></tr>
+          <tr><th>Length</th><td>Seconds on screen (blank = 10).</td></tr>
+          <tr><th>Sharing</th><td>Share every sheet, Drive folder and Drive image as <b>Anyone with the link: Viewer</b>. Give the club's volunteers <b>Editor</b> access by email.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    ${GUIDE_TYPES.map(sec).join("")}
+
+    <section class="gsec" id="g-auto">
+      <div>
+        <h3>Automatic extras</h3>
+        <p>These don't need rows in the sheet.</p>
+        <ul>
+          <li><b>Scores ticker</b> along the bottom bar (needs the club's <b>PlayCricketID</b>): live games with batters and bowler while play is on, otherwise each team's latest result.</li>
+          <li><b>RKT Sport splash</b> after every second full rotation.</li>
+          <li><b>Clock</b>, slide dots and a progress line in the bottom bar.</li>
+        </ul>
+      </div>
+      <div><div class="pv" data-pv="ticker"></div><div class="pv-cap">The RKT Sport splash, with the scores ticker in the bottom bar</div></div>
+    </section>
+
+    <section class="gsec wide" id="g-controls">
+      <div>
+        <h3>Controls</h3>
+        <p>Move the mouse on the TV screen to show the control bar:</p>
+        <ul>
+          <li><b>⏮ Back / ⏸ Pause / Next ⏭</b>: step through slides or hold one (resumes by itself after 5 minutes). Keyboard: <span class="kbd">←</span> <span class="kbd">→</span> <span class="kbd">Space</span>.</li>
+          <li><b>Full screen</b> (<span class="kbd">F</span>) and <b>‹ Clubs</b> (<span class="kbd">M</span>).</li>
+          <li><b>Set width</b>: for fixed-size scoreboards. Enter a pixel width (e.g. <i>1280</i>) or <i>WIDTHxHEIGHT</i> (e.g. <i>1280x400</i>). Saved in the address, e.g. <i>?club=Omega&amp;width=1280</i>, so it can be bookmarked.</li>
+          <li>Add <b>&amp;debug</b> to the address to see why a slide was skipped.</li>
+        </ul>
+      </div>
+    </section>
+  </div>`;
+}
+// Draw each preview with the real slide code, scaled down into its box
+function drawGuidePreviews(first){
+  const demo = { name: first?.name || "Your Club", c1: first?.c1 || [4, 4, 81], c2: first?.c2 || [115, 23, 63], logo: first?.logo || badge("YC", "#040451"), logoAlt: first?.logoAlt || "", pcId: "demo-club" };
+  const frame = (box, inner, bar) => {
+    box.innerHTML = `<div class="pv-in" style="${varStyle(demo)}"><div class="backdrop"></div><div class="tv"><div class="stage">${inner}</div>
+      <div class="bar${bar ? " has-ticker" : ""}"><div class="progress" style="width:55%"></div>${demo.logo ? `<img class="blogo" src="${esc(demo.logo)}" alt="" onerror="this.remove()">` : ""}<div class="club">${esc(demo.name)}</div>
+      ${bar ? `<div class="ticker"><div class="tk-track"><div class="tk-set">${bar}</div></div></div>` : ""}<div class="dots"><div class="dot"></div><div class="dot on"></div><div class="dot"></div></div><div class="clock">2:45 pm</div></div></div></div>`;
+    return box.querySelector(".stage");
+  };
+  const scale = () => document.querySelectorAll(".pv").forEach(b => { const i = b.firstElementChild; if (i) i.style.setProperty("--s", b.clientWidth / 1600); });
+  const slide = (cls, html) => `<div class="slide ${cls} on">${html}</div>`;
+  const P = {
+    ladder: st => { const L = ladderHTML(sampleLadder(), { ladderName: "" }, demo); st.innerHTML = slide("ladder", L.html); fitLadder(st.firstElementChild, L.n, L.k); },
+    sponsor: st => { st.innerHTML = slide("sponsor", `<div class="s-kicker">${esc(CONFIG.SPONSOR_HEADING)}</div><div class="s-panel"><img src="${sponsorSvg}" alt="" style="height:20.6rem"></div><div class="s-details"><div class="first">O'Brien Real Estate</div><div>Proud supporters since 2012</div></div>`); },
+    image: st => { const src = photo("#7fb3e0", "#d8ecff", "Presentation Night · Sat 14 March"); st.innerHTML = slide("image", `<div class="blur" style="background-image:url('${src}')"></div><img class="main" src="${src}" alt="">`); },
+    gallery: st => { const cs = [["#f4b183", "#ffe5cc"], ["#9fd3c7", "#e6fff9"], ["#c3b1e1", "#f1eaff"], ["#f7d774", "#fff6d5"]];
+      st.innerHTML = slide("gallery", `<div class="g-grid" style="--cols:2;--rows:2;height:100%">${cs.map((c, i) => { const u = photo(c[0], c[1], "Photo " + (i + 1)); return `<div class="g-tile"><div class="blur" style="background-image:url('${u}')"></div><img src="${u}" alt=""></div>`; }).join("")}</div>`); },
+    honours: st => { const names = [["Noel McGaw", 1986], ["Jack Hickey", 1986], ["Joyce McGaw", 1986], ["John Smith", 1987], ["Phil Taranto", 1987], ["Paul McGaw", 1987], ["Ansel Arcuri", 1988], ["John McAlroy", 1988], ["Chris 'Dizzy' Smith", 1989], ["Marty Wylie", 1989], ["Danny Maher", 1991], ["Gavan McGaw", 1993], ["Andy Ryan", 1995], ["Peter Ryan", 1996], ["Barry Edwards", 1996], ["Janet Edwards", 1996], ["Chris Ryan", 1999], ["Steve Freeman", 2000], ["Steve Cruwys", 2001], ["Andrew McGaw", 2002], ["Tim Aldridge", 2002]];
+      st.innerHTML = slide("honours", honoursHTML({ title: "Life Members", layout: "board", thumbs: false, cols: 3, rows: 7, entries: names.map((n, i) => ({ no: i + 1, name: n[0], year: n[1] })), page: 1, pages: 3 }, demo));
+      fitHonours(st.firstElementChild); },
+    youtube: st => { const src = photo("#2b2b2b", "#555", "Club highlights 2025/26");
+      st.innerHTML = slide("youtube", `<div style="position:absolute;inset:0;background:#000 url('${src}') center/cover"></div><div style="position:absolute;left:50%;top:50%;width:11rem;height:7.6rem;margin:-3.8rem 0 0 -5.5rem;background:#f00;border-radius:2rem;display:grid;place-items:center"><div style="width:0;height:0;border-left:3.2rem solid #fff;border-top:1.9rem solid transparent;border-bottom:1.9rem solid transparent;margin-left:.6rem"></div></div>`); },
+    livescore: st => { st.innerHTML = `<div class="slide livescore on"></div>`; const el = st.firstElementChild; const b = boardHTML(sampleBoard(), demo); el.classList.toggle("solo", b.solo); el.innerHTML = b.html; fitBoard(el); },
+    ticker: st => { st.innerHTML = slide("splash", `<div class="sp-badge">${rktLogo()}</div><h2>Automate your club screens</h2><p>Engaging content for your sponsors and supporters</p><div class="sp-mail">${esc(CONFIG.RKT_EMAIL)}</div>`); }
+  };
+  document.querySelectorAll(".pv[data-pv]").forEach(box => {
+    const k = box.dataset.pv;
+    try {
+      box.firstElementChild?.remove();
+      const st = frame(box, "", k === "ticker" ? sampleTicker() : "");
+      box.firstElementChild.style.setProperty("--s", 1);   // lay out at full size, then scale down
+      P[k] && P[k](st);
+    } catch (e){ console.warn("[RKT TV] guide preview", k, e); }
+  });
+  scale();
+  addEventListener("resize", scale);
+}
+
 async function makeSplash(stage){
   await Promise.race([rktLogoReady, sleep(4000)]);
   const el = document.createElement("div");
@@ -1163,12 +1621,13 @@ async function makeSplash(stage){
 
 function renderMenu(clubs){
   document.documentElement.classList.add("menu");
+  setTimeout(() => drawGuidePreviews(clubs[0]), 0);
   app.innerHTML = `
     <div class="backdrop"></div>
     <div class="menu-wrap">
       <div class="menu-head">
         <div class="brand"><div class="brand-badge">${rktLogo()}</div><div><div class="kicker">Club TV</div><h1>RKT TV</h1></div></div>
-        <p>Pick a club to start its screen. Bookmark the club's page on the TV and it will open straight into the rotation.</p>
+        <p>Pick a club to start its screen. Bookmark the club's page on the TV and it will open straight into the rotation.<br><a href="#guide" style="color:rgb(var(--accent))">Setup guide: slide types and sheet values ›</a></p>
       </div>
       <div class="grid">${clubs.map(c => `
         <a class="card" style="${varStyle(c)}" href="?club=${encodeURIComponent(c.name)}">
@@ -1177,6 +1636,7 @@ function renderMenu(clubs){
           <div class="go">Start screen ›</div>
         </a>`).join("")}
       </div>
+      ${guideHTML()}
       <div class="menu-foot"><span>Powered by <strong>RKT Sport</strong>: automate your club screens</span><a href="mailto:${esc(CONFIG.RKT_EMAIL)}">${esc(CONFIG.RKT_EMAIL)}</a></div>
     </div>`;
 }
@@ -1268,7 +1728,7 @@ async function runClub(club){
     stage.querySelectorAll(".notice").forEach(n => n.remove());
     const old = [...stage.querySelectorAll(".slide.on")];
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("on")));
-    old.forEach(o => { o.classList.remove("on"); try { o._player && o._player.stopVideo && o._player.stopVideo(); } catch (e){}
+    old.forEach(o => { o.classList.remove("on"); try { o._stop && o._stop(); } catch (e){} try { o._player && o._player.stopVideo && o._player.stopVideo(); } catch (e){}
       setTimeout(() => { (o._blobs || []).forEach(u => URL.revokeObjectURL(u)); try { o._player && o._player.destroy && o._player.destroy(); } catch (e){} o.remove(); }, 1000); });
     current = el; el._onEnd = () => { if (current === el && !paused) finish(); };
   };
