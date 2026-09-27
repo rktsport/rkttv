@@ -149,6 +149,40 @@
   .image .blur{position:absolute;inset:-6%;background-size:cover;background-position:center;filter:blur(3rem) brightness(.42) saturate(1.2)}
   .image .main{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 
+  /* Honours */
+  .honours{padding:2.6rem 3.2rem 1.8rem;display:flex;flex-direction:column}
+  .h-head{display:flex;align-items:center;gap:1.6rem;margin-bottom:1.6rem;flex:0 0 auto}
+  .h-head .clogo{height:5.6rem;width:5.6rem;border-radius:.8rem;background:#fff;object-fit:contain;padding:.35rem;box-shadow:0 .5rem 1.5rem rgba(0,0,0,.4)}
+  .h-meta{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:.5rem}
+  .h-body{--k:1;flex:1;min-height:0;overflow:hidden;font-size:calc(1rem * var(--k));position:relative}
+  .h-rule{height:.22rem;background:linear-gradient(90deg,rgb(var(--c2)),rgba(var(--c2),0));margin:-.6rem 0 1.4rem;flex:0 0 auto}
+  /* board (list) */
+  .h-body.board{display:flex;flex-direction:column;justify-content:center}
+  .h-board{display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--rows),minmax(min-content,1fr));grid-template-columns:repeat(var(--cols),minmax(0,1fr));column-gap:2.4em;row-gap:.7em;height:min(100%,calc(var(--rows) * 7.5em))}
+  .h-row{display:flex;align-items:center;gap:.9em;min-width:0;padding:.55em .9em;border-radius:.5em;background:rgba(255,255,255,.05);border-left:.28em solid rgba(var(--c2),.85)}
+  .h-no{flex:0 0 auto;min-width:1.9em;font:700 1.9em/1 var(--cond);color:rgb(var(--accent));text-align:right}
+  .h-thumb{flex:0 0 auto;width:4.4em;height:4.4em;border-radius:50%;object-fit:cover;background:rgba(var(--c1d),1);box-shadow:0 0 0 .18em rgba(var(--c2),.9)}
+  .h-mono{flex:0 0 auto;width:4.4em;height:4.4em;border-radius:50%;display:grid;place-items:center;background:rgba(var(--c2),.9);color:rgb(var(--onc2));box-shadow:0 0 0 .18em rgba(var(--c2),.9)}
+  .h-mono span{font:700 1.7em/1 var(--cond)}
+  .h-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:.25em}
+  .h-name{font:600 var(--nfs,2.25em)/1.1 "Barlow",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .h-award{font:600 1.35em/1.15 var(--cond);letter-spacing:.1em;text-transform:uppercase;color:rgb(var(--accent));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .h-board.tight .h-name{font:600 2.35em/1.1 var(--cond);letter-spacing:.01em}
+  .h-year{flex:0 0 auto;font:700 2em/1 var(--cond);font-variant-numeric:tabular-nums;color:rgba(255,255,255,.85);padding-left:.4em}
+  /* feature (cards) */
+  .h-feat{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:2.2em;height:100%;align-items:stretch}
+  .h-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.9em;padding:2.2em 2em;border-radius:1.4em;
+    background:linear-gradient(180deg,rgba(var(--c1d),.92),rgba(0,0,0,.35));box-shadow:0 1em 3em rgba(0,0,0,.45),inset 0 0 0 .1em rgba(255,255,255,.08);border-top:.45em solid rgb(var(--c2))}
+  .h-card .h-photo{width:14em;height:14em;border-radius:50%;object-fit:cover;background:#fff;box-shadow:0 0 0 .4em rgb(var(--c2)),0 1em 2em rgba(0,0,0,.5);flex:0 0 auto}
+  .h-card .h-mono{width:14em;height:14em;box-shadow:0 0 0 .4em rgb(var(--c2)),0 1em 2em rgba(0,0,0,.5)}
+  .h-card .h-mono span{font:800 5em/1 var(--cond)}
+  .h-card .h-cname{font:800 3.2em/1 var(--cond);text-transform:uppercase;letter-spacing:.02em;margin-top:.3em}
+  .h-card .h-award{font-size:1.5em;white-space:normal}
+  .h-card ul{list-style:none;display:flex;flex-direction:column;gap:.45em;margin-top:.4em;width:100%}
+  .h-card li{font:500 1.55em/1.25 "Barlow",sans-serif;color:rgba(255,255,255,.86);padding-bottom:.45em;border-bottom:.08em solid rgba(255,255,255,.1)}
+  .h-card li:last-child{border-bottom:0}
+  .h-card li strong{color:#fff;font-weight:700}
+
   /* RKT Sport branding */
   .brand{display:flex;align-items:center;gap:20px}
   .brand-badge{flex:0 0 auto;background:#fff;border-radius:18px;padding:10px 16px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
@@ -282,7 +316,7 @@ function warn(msg){
 // Loads the sheet as a <script> (JSONP) so it works from any website, from a local file,
 // and regardless of which Google account the browser is signed into. Falls back to fetch.
 let jsonpSeq = 0;
-function sheetJsonp(id){
+function sheetJsonp(id, extra = ""){
   return new Promise((ok, fail) => {
     const cb = "__rktSheet" + (++jsonpSeq);
     const s = document.createElement("script");
@@ -290,23 +324,26 @@ function sheetJsonp(id){
     const t = setTimeout(() => { done(); fail(new Error("timeout")); }, 20000);
     window[cb] = data => { done(); ok(data); };
     s.onerror = () => { done(); fail(new Error("script error")); };
-    s.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=1&_=${Date.now()}`;
+    s.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:json;responseHandler:${cb}&headers=1${extra}&_=${Date.now()}`;
     document.head.appendChild(s);
   });
 }
-async function sheetFetch(id){
-  const res = await fetch(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:json&headers=1&_=${Date.now()}`, { cache: "no-store", credentials: "omit" });
+async function sheetFetch(id, extra = ""){
+  const res = await fetch(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/gviz/tq?tqx=out:json&headers=1${extra}&_=${Date.now()}`, { cache: "no-store", credentials: "omit" });
   const text = await res.text();
   const a = text.indexOf("{"), b = text.lastIndexOf("}");
   if (a < 0) throw new Error("not JSON");
   return JSON.parse(text.slice(a, b + 1));
 }
-async function readSheet(idOrUrl){
+// tab: { gid } or { sheet: "Tab name" } to read a tab other than the first. A gid in the link is used automatically.
+async function readSheet(idOrUrl, tab = {}){
   const id = sheetIdOf(idOrUrl);
+  const gid = tab.gid ?? (String(idOrUrl).match(/[#?&]gid=(\d+)/) || [])[1];
+  const extra = tab.sheet ? `&sheet=${encodeURIComponent(tab.sheet)}` : gid != null ? `&gid=${gid}` : "";
   let data;
-  try { data = await sheetJsonp(id); }
+  try { data = await sheetJsonp(id, extra); }
   catch (e1) {
-    try { data = await sheetFetch(id); }
+    try { data = await sheetFetch(id, extra); }
     catch (e2) { throw new Error(`Couldn't open sheet ${id}. Check it's shared as "Anyone with the link: Viewer" and that this device can reach docs.google.com.`); }
   }
   if (data.status === "error") throw new Error((data.errors?.[0]?.detailed_message || data.errors?.[0]?.message || "Sheet error") + ` (${id})`);
@@ -388,9 +425,81 @@ async function buildSlides(club){
         src = driveImg(f.id); alt = driveImgAlt(f.id);
       }
       slides.push({ kind: type, src, alt, secs });
+    } else if (/^hono(u)?r|^lifemember|^awards?$/.test(type)){
+      try { slides.push(...await honoursSlides(club, link, fname, secs)); }
+      catch (e){ warn(`Honours "${fname || link}": ${e.message}`); }
     } else warn(`Unknown Type "${r.type}" — skipped.`);
   }
   return slides;
+}
+
+/* ---------- honours ---------- */
+// Honours tab columns (any order, matched by header): Name (required), No, Year/Season, Award, Details, Image
+const pick = (r, keys) => { for (const k of keys){ const v = r[k]; if (v !== undefined && String(v).trim() !== "") return String(v).trim(); } return ""; };
+const initials = n => { const w = String(n).replace(/'[^']*'|"[^"]*"|\([^)]*\)/g, " ").trim().split(/\s+/).filter(x => /^[a-z0-9]/i.test(x)); return ((w[0] || "?")[0] + (w.length > 1 ? w[w.length - 1][0] : "")).toUpperCase(); };
+function imgSrc(v){ if (!v) return ""; const d = driveFileIdOf(v); return d ? driveImg(d) : /^https?:\/\//i.test(v) ? fullRes(v) : ""; }
+function splitDetails(t){
+  return String(t || "").split(/\r?\n|\s+\|\s+|;\s*|,\s*(?=[A-Z][^,:]{1,40}:)/).map(x => x.trim()).filter(Boolean);
+}
+async function honoursSlides(club, link, title, secs){
+  let rows, tabName = "";
+  if (/^https?:\/\//i.test(link) || /\/d\/[\w-]{20,}/.test(link)) rows = await readSheet(link);
+  else { tabName = link || title; if (!tabName) throw new Error("put the tab name (or a link to the tab) in Link"); rows = await readSheet(club.sheet, { sheet: tabName }); }
+  const entries = rows.map(r => ({
+    no: pick(r, ["no", "no.", "number", "#", "num"]),
+    name: pick(r, ["name", "player", "member", "winner", "recipient"]),
+    year: pick(r, ["year", "season", "inducted", "years", "date"]),
+    award: pick(r, ["award", "honour", "honor", "achievement", "title", "position", "role", "category"]),
+    details: pick(r, ["details", "detail", "description", "achievements", "notes", "citation"]),
+    image: imgSrc(pick(r, ["image", "photo", "picture", "img", "image link", "photo link"]))
+  })).filter(e => e.name);
+  if (!entries.length) throw new Error("no rows with a Name");
+  const feature = entries.some(e => e.details);
+  const thumbs = !feature && entries.some(e => e.image);
+  const hasAward = entries.some(e => e.award);
+  const L = feature ? { cols: 3, rows: 1 } : thumbs ? { cols: 2, rows: 7 } : hasAward ? { cols: 2, rows: 8 } : { cols: 3, rows: 10 };
+  const per = L.cols * L.rows, pages = Math.ceil(entries.length / per), perPage = Math.ceil(entries.length / pages);
+  const out = [];
+  for (let p = 0; p < pages; p++){
+    const chunk = entries.slice(p * perPage, (p + 1) * perPage);
+    out.push({ kind: "honours", title: title || tabName || "Honour Board", layout: feature ? "feature" : "board",
+      thumbs, cols: feature ? Math.min(L.cols, Math.max(chunk.length, 1)) : L.cols, rows: Math.ceil(chunk.length / L.cols), entries: chunk, page: p + 1, pages, secs });
+  }
+  return out;
+}
+function honoursHTML(s, club){
+  const mono = (e, cls = "") => `<div class="h-mono ${cls}"><span>${esc(initials(e.name))}</span></div>`;
+  const pic = (e, cls) => e.image ? `<img class="${cls}" src="${esc(e.image)}" alt="" onerror="this.outerHTML=${esc(JSON.stringify(mono(e)))}">` : mono(e);
+  let body;
+  if (s.layout === "feature"){
+    body = `<div class="h-feat" style="--cols:${s.cols}">${s.entries.map(e => `
+      <div class="h-card">${pic(e, "h-photo")}
+        <div class="h-cname">${esc(e.name)}</div>
+        ${e.award || e.year ? `<div class="h-award">${esc([e.award, e.year].filter(Boolean).join(" · "))}</div>` : ""}
+        ${e.details ? `<ul>${splitDetails(e.details).map(d => { const m = d.match(/^([^:]{1,40}):\s*(.+)$/); return `<li>${m ? `${esc(m[1])}: <strong>${esc(m[2])}</strong>` : esc(d)}</li>`; }).join("")}</ul>` : ""}
+      </div>`).join("")}</div>`;
+  } else {
+    body = `<div class="h-board${s.cols >= 3 ? " tight" : ""}" style="--cols:${s.cols};--rows:${s.rows}">${s.entries.map(e => `
+      <div class="h-row">${s.thumbs ? pic(e, "h-thumb") : ""}${e.no ? `<div class="h-no">${esc(e.no)}</div>` : ""}
+        <div class="h-txt"><div class="h-name">${esc(e.name)}</div>${e.award ? `<div class="h-award">${esc(e.award)}</div>` : ""}</div>
+        ${e.year ? `<div class="h-year">${esc(e.year)}</div>` : ""}
+      </div>`).join("")}</div>`;
+  }
+  return `
+    <div class="h-head">
+      ${club.logo ? `<img class="clogo" src="${esc(club.logo)}" alt="" onerror="this.remove()">` : ""}
+      <div><div class="l-kicker">${esc(club.name)} · Honour board</div><div class="l-title">${esc(s.title)}</div></div>
+      ${s.pages > 1 ? `<div class="h-meta"><div class="chip">${s.page} of ${s.pages}</div></div>` : ""}
+    </div>
+    <div class="h-rule"></div>
+    <div class="h-body ${s.layout}">${body}</div>`;
+}
+function fitHonours(el){
+  const b = el.querySelector(".h-body");
+  const over = () => b.scrollHeight > b.clientHeight + 1 || [...b.querySelectorAll(".h-card")].some(c => c.scrollHeight > c.clientHeight + 1)
+    || [...b.querySelectorAll(".h-name")].some(n => n.scrollWidth > n.clientWidth + 1);
+  let k = 1.25; b.style.setProperty("--k", k);
+  while (k > 0.55 && over()){ k -= 0.03; b.style.setProperty("--k", k); }
 }
 
 /* ---------- image preloading ---------- */
@@ -510,6 +619,10 @@ async function makeSlide(s, club, stage){
     const entry = await getLadder(s.url);
     const L = ladderHTML(entry, s, club);
     el.innerHTML = L.html; stage.appendChild(el); fitLadder(el, L.n, L.k);
+  } else if (s.kind === "honours"){
+    el.innerHTML = honoursHTML(s, club); stage.appendChild(el);
+    await Promise.all([...el.querySelectorAll("img")].map(i => i.complete ? 0 : new Promise(r => { i.addEventListener("load", r); i.addEventListener("error", () => setTimeout(r, 0)); setTimeout(r, 8000); })));
+    fitHonours(el);
   } else if (s.kind === "sponsor"){
     const src = await loadAny(s.src, s.alt);
     el.innerHTML = `<div class="s-kicker">${esc(CONFIG.SPONSOR_HEADING)}</div><div class="s-panel"><img src="${esc(src)}" alt="Sponsor"></div>`;
@@ -652,7 +765,7 @@ function startTicker(club, bar){
         if (structure.prev){ data = await seasonItems(club.pcId, structure.prev); label = structure.prev.season.name.replace(/^Summer\s*/i, ""); }
       }
       hasLive = data.live.length > 0;
-      const items = [...data.live, ...data.results];
+      const items = data.live.length ? data.live : data.results;   // live games take over the ticker while any are on
       if (!items.length){ box.hidden = true; bar.classList.remove("has-ticker"); return; }
       const html = items.map(it => tickerItemHTML(it, it.kind === "result" ? label : "")).join("");
       if (box.hidden){ box.hidden = false; bar.classList.add("has-ticker"); apply(html); }
