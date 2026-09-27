@@ -265,7 +265,7 @@ const CONFIG = {
   MASTER_SHEET: "https://docs.google.com/spreadsheets/d/1y_C9meoz1ifgBcsJ1fJjPN87-5RKcPam81NvFmAE-6Q/edit?usp=sharing",
   // Only needed for Image rows that give a Filename (looks the file up in the club's Drive folder).
   // Leave blank if Image rows use a Google Drive share link in the Link column instead.
-  GOOGLE_API_KEY: "",
+  GOOGLE_API_KEY: "AIzaSyC-i38xOyYQItTkBf7XbgQBQM0xVolgCCQ",
   DEFAULT_SECONDS: 10,     // used when Length is blank
   GALLERY_MAX: 24,         // most images a Gallery slide will show at once
   IMAGE_STORE_MB: 400,     // images kept on this device between visits (least-recently-shown are dropped first).
@@ -354,6 +354,7 @@ function applyTheme(el, club){ for (const [k, v] of Object.entries(themeVars(clu
 const varStyle = club => Object.entries(themeVars(club)).map(([k, v]) => `${k}:${v}`).join(";");
 
 let toastTimer;
+window.warn = warn;
 function warn(msg){
   console.warn("[RKT TV]", msg);
   if (!DEBUG) return;
@@ -448,7 +449,10 @@ function clubFromRow(r){
   };
 }
 
+let buildIssues = [];
 async function buildSlides(club){
+  buildIssues = [];
+  const warn = m => { buildIssues.push(m); window.warn(m); };
   if (!club.sheet) throw new Error(`Add the link to ${club.name}'s sheet in the master sheet's "Sheet" column.`);
   const rows = await readSheet(club.sheet);
   const list = rows.map((r, i) => ({ r, i }))
@@ -499,7 +503,7 @@ async function galleryFiles(link){
   if (!/^[\w-]{10,}$/.test(folder)) throw new Error("Link needs to be a Google Drive folder link");
   const hit = galleryLists.get(folder);
   if (hit && Date.now() - hit.t < 30 * 60e3) return hit.files;
-  let files = [];
+  let files = [], html = "";
   try {
     if (CONFIG.GOOGLE_API_KEY){
       let token = "";
@@ -510,13 +514,18 @@ async function galleryFiles(link){
       } while (token);
     } else {
       // No API key: read Drive's public "embedded folder" page (via the relays) and pick out the files
-      const html = await apiText(`https://drive.google.com/embeddedfolderview?id=${folder}`, t => /flip-entry|drive/i.test(t));
+      try { html = await apiText(`https://drive.google.com/embeddedfolderview?id=${folder}`, t => /flip-entry|\/file\/d\//.test(t)); }
+      catch (e){ throw new Error(`couldn't read the Drive folder list (${e.message}). Check the folder is shared "Anyone with the link: Viewer". For reliable galleries, set GOOGLE_API_KEY.`); }
       for (const m of html.matchAll(/id="entry-([\w-]{20,})"[\s\S]*?flip-entry-title">([^<]*)</g)){
         const id = m[1], name = m[2].replace(/&amp;/g, "&").replace(/&#39;/g, "'").trim();
         if (html.includes(`/folders/${id}`) && !html.includes(`/file/d/${id}`)) continue;   // skip sub-folders
         if (name && /\.[a-z0-9]{2,5}$/i.test(name) && !IMG_EXT.test(name)) continue;       // skip non-images
         if (!files.some(f => f.id === id)) files.push({ id, name });
       }
+    }
+    if (!files.length && !CONFIG.GOOGLE_API_KEY){
+      // Fallback: any file links on the page
+      for (const m of html.matchAll(/\/file\/d\/([\w-]{20,})/g)) if (!files.some(f => f.id === m[1])) files.push({ id: m[1], name: "" });
     }
   } catch (e){ if (hit) return hit.files; throw e; }
   files.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: "base" }));
@@ -723,9 +732,9 @@ function ladderUrl(v){
 }
 const ladderCache = new Map();
 let apiRoute = null;   // route that last worked (-1 = direct, 0.. = relay index)
-async function apiVia(route, url, raw){
+async function apiVia(route, url, raw, ms = 20000){
   const target = route < 0 ? url : CONFIG.LADDER_PROXIES[route] + encodeURIComponent(url);
-  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20000);
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
   try {
     const res = await fetch(target, { cache: "no-store", signal: ctl.signal, credentials: "omit" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -735,12 +744,14 @@ async function apiVia(route, url, raw){
 }
 // Same as apiJSON but returns text (used to read a public Drive folder page through the relays)
 async function apiText(url, ok = () => true){
-  const errs = [];
-  for (const r of [-1, ...CONFIG.LADDER_PROXIES.map((_, i) => i)]){
-    try { const t = await apiVia(r, url, true); if (!ok(t)) throw new Error("unexpected response"); return t; }
-    catch (e){ errs.push((r < 0 ? "direct" : "relay " + (r + 1)) + ": " + e.message); }
-  }
-  throw new Error(errs.join("; "));
+  // Try direct + every relay at once and take the first good answer (much faster than one after another)
+  const routes = [-1, ...CONFIG.LADDER_PROXIES.map((_, i) => i)], errs = [];
+  return new Promise((resolve, reject) => {
+    let left = routes.length;
+    routes.forEach(r => apiVia(r, url, true, 15000)
+      .then(t => { if (!ok(t)) throw new Error("got a page without the folder's files"); resolve(t); })
+      .catch(e => { errs.push((r < 0 ? "direct" : "relay " + (r + 1)) + ": " + (e.name === "AbortError" ? "timed out" : e.message)); if (--left === 0) reject(new Error(errs.join("; "))); }));
+  });
 }
 // Fetch cricket.com.au JSON, directly or via a relay. `ok` checks the response looks right.
 async function apiJSON(url, ok = () => true){
@@ -1216,13 +1227,18 @@ async function runClub(club){
       }
       idx = -1;
       if (!slides.length || Date.now() - lastLoad >= CONFIG.REFRESH_MINUTES * 60e3){
+        if (!slides.length) stageNotice(`Loading ${club.name}…`, "Reading the club's sheet and content.");
         try { slides = await buildSlides(club); lastLoad = Date.now(); drawDots(); }
         catch (e){
           if (!slides.length){ stageNotice(`Can't load ${club.name}'s screen`, e.message + " Retrying shortly…"); await sleep(60e3); continue; }
           warn(e.message);
         }
       }
-      if (!slides.length){ stageNotice("Nothing to show yet", `Add rows with Active = 1 to ${club.name}'s sheet. Checking again shortly…`); lastLoad = 0; await sleep(60e3); continue; }
+      if (!slides.length){
+        if (buildIssues.length) stageNotice("Nothing could be shown", buildIssues.join(" • ") + " — Checking again shortly…");
+        else stageNotice("Nothing to show yet", `Add rows with Active = 1 to ${club.name}'s sheet. Checking again shortly…`);
+        lastLoad = 0; await sleep(60e3); continue;
+      }
     }
     idx++;
     const s = slides[idx];
