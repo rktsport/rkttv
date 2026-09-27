@@ -35,6 +35,11 @@
   *{box-sizing:border-box;margin:0;padding:0}
   /* TV mode: 1rem = 1% of a 16:9 screen width, so everything scales with the display */
   html{font-size:min(1vw,1.7778vh)}
+  /* Fixed-size mode for scoreboards: the display is drawn in a W x H box at the top-left */
+  html.fixed{font-size:var(--fs0)}
+  html.fixed body{background:#000}
+  html.fixed .backdrop,html.fixed .tv{inset:auto;left:0;top:0;width:var(--W);height:var(--H)}
+  html.fixed .backdrop{position:fixed;overflow:hidden}
   html.menu{font-size:16px}
   html,body{height:100%;background:var(--bg);color:var(--ink);font-family:"Barlow",system-ui,sans-serif}
   body{overflow:hidden}
@@ -224,6 +229,13 @@
   body.tv-mode:not(.awake){cursor:none}
   .btn{font:600 14px "Barlow",sans-serif;padding:8px 14px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(0,0,0,.6);color:#fff;cursor:pointer;text-decoration:none}
   .btn:hover{background:rgba(0,0,0,.8)}
+  body.panel-open .ctrl{opacity:1;pointer-events:auto}
+  .wpanel{position:fixed;top:56px;left:14px;z-index:6;background:#12141c;border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;font:500 14px "Barlow",sans-serif;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.6);width:280px}
+  .wpanel[hidden]{display:none}
+  .wpanel label{color:rgba(255,255,255,.75)}
+  .wpanel .row{display:flex;gap:8px;align-items:center}
+  .wpanel input{width:100%;font:600 16px "Barlow",sans-serif;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:#000;color:#fff}
+  .wpanel small{color:rgba(255,255,255,.55);line-height:1.35}
   .toast{position:fixed;right:14px;top:14px;z-index:6;max-width:420px;font:500 13px/1.4 "Barlow",sans-serif;background:rgba(160,30,30,.9);color:#fff;padding:10px 14px;border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none}
   .toast.show{opacity:1}
 </style>
@@ -247,10 +259,16 @@ const CONFIG = {
   TICKER: true,
   TICKER_REFRESH_MINUTES: 3,          // on match days
   TICKER_IDLE_REFRESH_MINUTES: 30,    // days with no club games
-  TICKER_LIVE_REFRESH_SECONDS: 10,    // while a club game is live: live scorecards (scores, batters, bowler) refresh this often;
+  TICKER_LIVE_REFRESH_SECONDS: 20,    // while a club game is live: live scorecards (scores, batters, bowler) refresh this often;
                                       // the full check of all grades still runs every TICKER_REFRESH_MINUTES
   TICKER_SPEED: 9,          // scroll speed (bigger = faster)
-  RKT_LOGO: "https://rktsport.wordpress.com/wp-content/uploads/2023/02/rkt-cut-out-1.png",
+  // Tried in order; the first that loads is used everywhere. "rkt-logo.png" = a copy uploaded next to index.html (most reliable).
+  RKT_LOGO: [
+    "rkt-logo.png",
+    "https://rktsport.wordpress.com/wp-content/uploads/2023/02/rkt-cut-out-1.png",
+    "https://rktsport.files.wordpress.com/2023/02/rkt-cut-out-1.png",
+    "https://i0.wp.com/rktsport.wordpress.com/wp-content/uploads/2023/02/rkt-cut-out-1.png"
+  ],
   RKT_EMAIL: "rktsportau@gmail.com",
   SPLASH_EVERY: 2,          // show the splash once every 2 full rotations (0 = never)
   SPLASH_SECONDS: 10,
@@ -863,9 +881,21 @@ function notice(title, msg, back){
   app.innerHTML = `<div class="backdrop"></div><div class="notice"><div class="box"><h2>${esc(title)}</h2><p>${esc(msg)}</p>${back ? `<a href="${esc(location.pathname)}">‹ Back to club list</a>` : ""}</div></div>`;
 }
 
-const rktLogo = () => `<img src="${esc(CONFIG.RKT_LOGO)}" alt="RKT Sport" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'txt',textContent:'RKT SPORT'}))">`;
+// Find a working copy of the RKT logo once, then reuse it (keeps it cached for the splash)
+let rktLogoSrc = null;
+const rktLogoReady = (async () => {
+  for (const u of [].concat(CONFIG.RKT_LOGO || [])){
+    try { rktLogoSrc = await loadImg(u, 15000); return rktLogoSrc; } catch (e){ console.warn("[RKT TV] logo not at", u); }
+  }
+  warn("RKT Sport logo couldn't be loaded from any address");
+  return null;
+})();
+const rktLogo = () => rktLogoSrc
+  ? `<img src="${esc(rktLogoSrc)}" alt="RKT Sport" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'txt',textContent:'RKT SPORT'}))">`
+  : `<div class="txt">RKT SPORT</div>`;
 
-function makeSplash(stage){
+async function makeSplash(stage){
+  await Promise.race([rktLogoReady, sleep(4000)]);
   const el = document.createElement("div");
   el.className = "slide splash";
   el.innerHTML = `
@@ -913,7 +943,13 @@ async function runClub(club){
         <div class="clock" id="clock"></div>
       </div>
     </div>
-    <div class="ctrl"><a class="btn" href="${esc(location.pathname)}">‹ Clubs</a><button class="btn" id="fs">Full screen</button></div>
+    <div class="ctrl"><a class="btn" href="${esc(location.pathname)}">‹ Clubs</a><button class="btn" id="fs">Full screen</button><button class="btn" id="setw">Set width</button></div>
+    <div class="wpanel" id="wpanel" hidden>
+      <label for="wval">Display width in pixels</label>
+      <div class="row"><input id="wval" inputmode="numeric" placeholder="e.g. 1280 or 1280x400"></div>
+      <small>Height scales to 16:9 automatically. Type WIDTHxHEIGHT (e.g. 1280x400) to set both. Leave blank to fill the screen.</small>
+      <div class="row"><button class="btn" id="wapply">Apply</button><button class="btn" id="wreset">Fill screen</button><button class="btn" id="wclose">Close</button></div>
+    </div>
     <div class="toast" id="toast"></div>`;
   const stage = document.getElementById("stage"), prog = document.getElementById("prog"), dots = document.getElementById("dots");
 
@@ -925,6 +961,16 @@ async function runClub(club){
   addEventListener("mousemove", wake); addEventListener("touchstart", wake);
   const fullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {});
   document.getElementById("fs").onclick = fullscreen;
+  const wp = document.getElementById("wpanel"), wv = document.getElementById("wval");
+  const closePanel = () => { wp.hidden = true; document.body.classList.remove("panel-open"); };
+  document.getElementById("setw").onclick = () => {
+    wp.hidden = !wp.hidden; document.body.classList.toggle("panel-open", !wp.hidden);
+    const cur = displaySize(); wv.value = cur ? (cur.custom ? `${cur.w}x${cur.h}` : cur.w) : ""; if (!wp.hidden) wv.focus();
+  };
+  document.getElementById("wapply").onclick = () => { setDisplaySize(wv.value); closePanel(); };
+  document.getElementById("wreset").onclick = () => { setDisplaySize(""); closePanel(); };
+  document.getElementById("wclose").onclick = closePanel;
+  wv.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter"){ setDisplaySize(wv.value); closePanel(); } if (e.key === "Escape") closePanel(); });
 
   let slides = [], idx = -1, lastLoad = 0, fails = 0, rotations = 0, skip = () => {};
   const wait = ms => new Promise(r => { const t = setTimeout(r, ms); skip = () => { clearTimeout(t); r(); }; });
@@ -951,7 +997,7 @@ async function runClub(club){
   while (true){
     if (idx + 1 >= slides.length){
       if (idx >= 0 && slides.length && CONFIG.SPLASH_EVERY > 0 && ++rotations % CONFIG.SPLASH_EVERY === 0){
-        show(makeSplash(stage));
+        show(await makeSplash(stage));
         dots.querySelectorAll(".dot").forEach(d => d.classList.remove("on"));
         progress(CONFIG.SPLASH_SECONDS);
         await wait(CONFIG.SPLASH_SECONDS * 1000);
@@ -982,15 +1028,47 @@ async function runClub(club){
   }
 }
 
+/* ---------- fixed display size (Set width) ---------- */
+// Stored in the address (?width=1280 or ?width=1280x400) so it can be bookmarked, and remembered on this device.
+function parseSize(v){
+  const m = String(v || "").trim().match(/^(\d{2,5})(?:\s*[x×*,]\s*(\d{2,5}))?$/i);
+  if (!m) return null;
+  const w = +m[1], h = m[2] ? +m[2] : Math.round(w * 9 / 16);
+  return { w, h, custom: !!m[2] };
+}
+function displaySize(){
+  let v = params.get("width");
+  if (v === null){ try { v = localStorage.getItem("rkttv-width"); } catch (e){} }
+  return parseSize(v);
+}
+function applyDisplaySize(){
+  const sz = displaySize(), root = document.documentElement;
+  if (!sz){ root.classList.remove("fixed"); return; }
+  root.classList.add("fixed");
+  root.style.setProperty("--W", sz.w + "px"); root.style.setProperty("--H", sz.h + "px");
+  root.style.setProperty("--fs0", Math.min(sz.w / 100, sz.h / 56.25) + "px");
+}
+function setDisplaySize(v){
+  const sz = parseSize(v);
+  if (String(v || "").trim() && !sz){ alert("Enter a width in pixels, e.g. 1280, or WIDTHxHEIGHT, e.g. 1280x400"); return; }
+  const val = sz ? (sz.custom ? `${sz.w}x${sz.h}` : String(sz.w)) : null;
+  try { val ? localStorage.setItem("rkttv-width", val) : localStorage.removeItem("rkttv-width"); } catch (e){}
+  if (val) params.set("width", val); else params.delete("width");
+  history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : ""));
+  // Rebuild so everything re-measures at the new size
+  location.reload();
+}
+
 /* ---------- start ---------- */
 (async function main(){
+  if (params.get("club")) applyDisplaySize();
   if (!CONFIG.MASTER_SHEET || CONFIG.MASTER_SHEET.startsWith("PASTE"))
     return notice("Almost there", "Open this HTML file in a text editor and paste the link to your RKT TV Master sheet into MASTER_SHEET near the top of the script.");
   let clubs;
   try { clubs = (await readSheet(CONFIG.MASTER_SHEET)).filter(r => String(r.club || "").trim()).map(clubFromRow); }
   catch (e){ notice("Can't read the master sheet", e.message + " Retrying in a minute…"); setTimeout(() => location.reload(), 60e3); return; }
   const want = params.get("club");
-  if (!want) return renderMenu(clubs);
+  if (!want){ await Promise.race([rktLogoReady, sleep(4000)]); return renderMenu(clubs); }
   const club = clubs.find(c => c.name.toLowerCase() === want.trim().toLowerCase());
   if (!club) return notice("Club not found", `There's no club called "${want}" in the master sheet.`, true);
   runClub(club);
