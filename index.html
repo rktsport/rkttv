@@ -68,7 +68,7 @@
   .card .go{font-size:13px;color:rgba(255,255,255,.7);letter-spacing:.08em;text-transform:uppercase}
 
   /* ---------- TV ---------- */
-  .tv{position:fixed;inset:0;z-index:1;display:grid;grid-template-rows:1fr auto}
+  .tv{position:fixed;inset:0;z-index:1;display:grid;grid-template-rows:1fr auto;grid-template-columns:minmax(0,1fr)}
   .stage{position:relative;overflow:hidden}
   .slide{position:absolute;inset:0;opacity:0;transform:scale(1.015);transition:opacity .9s ease,transform 1.2s ease}
   .slide.on{opacity:1;transform:none}
@@ -80,6 +80,38 @@
   .bar .blogo{height:3.6rem;width:3.6rem;object-fit:contain}
   .bar .club{font:700 2.1rem/1 var(--cond);letter-spacing:.08em;text-transform:uppercase}
   .dots{display:flex;gap:.55rem;margin-left:auto}
+  .bar.has-ticker .dots{margin-left:0}
+  .bar.has-ticker .club{display:none}
+
+  /* Scores ticker */
+  .ticker{flex:1;min-width:0;height:3.6rem;overflow:hidden;position:relative;display:flex;align-items:center;margin:0 .6rem;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent)}
+  .tk-track{display:flex;width:max-content;will-change:transform;animation:tk var(--tkdur,60s) linear infinite}
+  .tk-set{display:flex;align-items:center;flex:0 0 auto}
+  @keyframes tk{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .tk-item{display:inline-flex;align-items:center;gap:.8rem;white-space:nowrap;font:500 1.75rem/1 "Barlow",sans-serif;padding-right:1.4rem}
+  .tk-sep{color:rgb(var(--accent));opacity:.7;font-size:1rem;padding-right:1.4rem}
+  .tk-badge{font:700 1.3rem/1 var(--cond);letter-spacing:.12em;text-transform:uppercase;padding:.4rem .8rem;border-radius:.4rem;background:rgba(255,255,255,.14)}
+  .tk-badge.live{background:#d7263d;color:#fff;display:inline-flex;align-items:center;gap:.45rem}
+  .tk-badge.live::before{content:"";width:.7rem;height:.7rem;border-radius:50%;background:#fff;animation:pulse 1.2s ease-in-out infinite}
+  .tk-badge.prog{background:#b86e00;color:#fff}
+  .tk-badge.won{background:#1f8a4c;color:#fff}
+  .tk-badge.lost{background:rgba(255,255,255,.14);color:rgba(255,255,255,.85)}
+  .tk-badge.draw{background:rgba(255,255,255,.14);color:rgba(255,255,255,.85)}
+  .tk-grade{font:600 1.35rem/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--accent))}
+  .tk-team{color:rgba(255,255,255,.82)}
+  .tk-team.me{color:#fff;font-weight:700}
+  .tk-team b{font:700 1.95rem/1 var(--cond);letter-spacing:.02em;margin-left:.35rem;color:#fff}
+  .tk-v{color:var(--muted);font-size:1.4rem}
+  .tk-res{color:var(--muted);font-style:italic}
+  .tk-pl{display:inline-flex;align-items:center;gap:.9rem;padding-left:1rem;margin-left:.2rem;border-left:.15rem solid rgba(255,255,255,.2)}
+  .tk-bat{color:#fff}
+  .tk-bat b,.tk-bowl b{font:700 1.85rem/1 var(--cond);margin-left:.3rem}
+  .tk-bat small,.tk-bowl small{font-size:1.3rem;color:var(--muted);margin-left:.2rem}
+  .tk-bat.strike::before{content:"";display:inline-block;width:0;height:0;border-left:.7rem solid rgb(var(--accent));border-top:.45rem solid transparent;border-bottom:.45rem solid transparent;margin-right:.45rem;vertical-align:.1rem}
+  .tk-bowl{color:rgba(255,255,255,.88)}
+  .tk-bowl i{font:600 1.25rem/1 var(--cond);letter-spacing:.12em;text-transform:uppercase;font-style:normal;color:var(--muted);margin-right:.4rem}
+  @keyframes pulse{50%{opacity:.25}}
   .dot{width:.75rem;height:.75rem;border-radius:50%;background:rgba(255,255,255,.22);transition:background .4s,transform .4s}
   .dot.on{background:rgb(var(--accent));transform:scale(1.25)}
   .clock{font:600 2.3rem/1 var(--cond);font-variant-numeric:tabular-nums;letter-spacing:.04em;min-width:7.5rem;text-align:right}
@@ -173,12 +205,23 @@ const CONFIG = {
   LADDER_CACHE_MINUTES: 10,
   SPONSOR_HEADING: "Proudly sponsored by",
   // RKT Sport branding: logo on the club list, and a splash slide after every Nth full rotation
+  // Scores ticker in the bottom bar (uses the club's PlayCricketID from the master sheet)
+  TICKER: true,
+  TICKER_REFRESH_MINUTES: 3,
+  TICKER_LIVE_REFRESH_MINUTES: 1.5,   // faster refresh while a club game is live (includes batters/bowler)
+  TICKER_SPEED: 9,          // scroll speed (bigger = faster)
   RKT_LOGO: "https://rktsport.wordpress.com/wp-content/uploads/2023/02/rkt-cut-out-1.png",
   RKT_EMAIL: "rktsportau@gmail.com",
   SPLASH_EVERY: 2,          // show the splash once every 2 full rotations (0 = never)
   SPLASH_SECONDS: 10,
-  // Only if ladders show "Couldn't load ladder" on your site: a CORS proxy prefix, e.g. "https://corsproxy.io/?url="
-  LADDER_PROXY: ""
+  // The cricket ladder service only lets its own website read it directly, so the page falls back to
+  // public relays (tried in order; the first one that works is remembered). Put your own relay first
+  // here if you set one up later. The ladder URL is added (encoded) to the end of each.
+  LADDER_PROXIES: [
+    "https://corsproxy.io/?url=",
+    "https://api.allorigins.win/raw?url=",
+    "https://api.codetabs.com/v1/proxy/?quest="
+  ]
 };
 /* ============================================================= */
 
@@ -372,15 +415,38 @@ function ladderUrl(v){
   return m ? `https://grassrootsapiproxy.cricket.com.au/fixturesladders/grades/${(m[1] || m[0]).toLowerCase()}/ladders?jsconfig=eccn%3Atrue` : "";
 }
 const ladderCache = new Map();
+let apiRoute = null;   // route that last worked (-1 = direct, 0.. = relay index)
+async function apiVia(route, url){
+  const target = route < 0 ? url : CONFIG.LADDER_PROXIES[route] + encodeURIComponent(url);
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const res = await fetch(target, { cache: "no-store", signal: ctl.signal, credentials: "omit" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return JSON.parse(await res.text());
+  } finally { clearTimeout(t); }
+}
+// Fetch cricket.com.au JSON, directly or via a relay. `ok` checks the response looks right.
+async function apiJSON(url, ok = () => true){
+  const routes = [-1, ...CONFIG.LADDER_PROXIES.map((_, i) => i)];
+  if (apiRoute !== null) routes.sort((a, b) => (b === apiRoute) - (a === apiRoute));
+  const errs = [];
+  for (const r of routes){
+    try {
+      const data = await apiVia(r, url);
+      if (!data || !ok(data)) throw new Error("unexpected response");
+      apiRoute = r; return data;
+    } catch (e){ errs.push((r < 0 ? "direct" : "relay " + (r + 1)) + ": " + e.message); }
+  }
+  throw new Error(errs.join("; "));
+}
 async function getLadder(url){
   const hit = ladderCache.get(url);
   if (hit && Date.now() - hit.t < CONFIG.LADDER_CACHE_MINUTES * 60e3) return hit;
   try {
-    const res = await fetch(CONFIG.LADDER_PROXY ? CONFIG.LADDER_PROXY + encodeURIComponent(url) : url, { cache: "no-store" });
-    if (!res.ok) throw new Error("Ladder HTTP " + res.status);
-    const entry = { t: Date.now(), data: await res.json() };
+    const data = await apiJSON(url, d => Array.isArray(d.ladders));
+    const entry = { t: Date.now(), data };
     ladderCache.set(url, entry); return entry;
-  } catch (e){ if (hit) return hit; throw new Error("Couldn't load ladder: " + e.message); }
+  } catch (e){ if (hit) return hit; throw new Error("Couldn't load ladder (" + e.message + ")"); }
 }
 const STAT = [
   ["played","P"],["won","W"],["lost","L"],["ties","T"],["drawn","D"],["noResults","NR"],["byes","BYE"],
@@ -456,6 +522,151 @@ async function makeSlide(s, club, stage){
   return el;
 }
 
+/* ---------- scores ticker ---------- */
+const API = "https://grassrootsapiproxy.cricket.com.au";
+const Q = "jsconfig=eccn%3Atrue";
+const FINAL = /COMPLET|ABANDON|FORFEIT|CANCEL|WASH|NO.?RESULT|DRAWN|WALKOVER/i;
+const PRE = /UPCOMING|SCHEDUL|POSTPON|NOT.?STARTED|FIXTURE/i;
+const titleCase = t => String(t || "").toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase()).replace(/\b(\d+)(St|Nd|Rd|Th)s?\b/g, (m) => m.toLowerCase()).replace(/\bT20\b/i, "T20");
+const dayKey = d => new Date(d).toLocaleDateString("en-AU");
+const lastDay = m => { const ds = (m.matchSchedule || []).map(x => Date.parse(x.startDateTime)).filter(Boolean); return ds.length ? Math.max(...ds) : 0; };
+const firstDay = m => { const ds = (m.matchSchedule || []).map(x => Date.parse(x.startDateTime)).filter(Boolean); return ds.length ? Math.min(...ds) : 0; };
+
+async function clubStructure(orgId){
+  const sj = await apiJSON(`${API}/fixturesladders/organisations/${orgId}/seasons?${Q}`, d => Array.isArray(d.seasons) || Array.isArray(d));
+  const seasons = (Array.isArray(sj) ? sj : sj.seasons).slice().sort((a, b) => Date.parse(b.startDate) - Date.parse(a.startDate));
+  const cur = seasons.find(x => x.isCurrentSeason) || seasons[0];
+  const prev = seasons.find(x => x !== cur && Date.parse(x.startDate) < Date.parse(cur.startDate));
+  const teamsOf = async season => {
+    if (!season) return null;
+    const tj = await apiJSON(`${API}/fixturesladders/organisations/${orgId}/teams?seasonId=${season.id}&${Q}`, d => Array.isArray(d.teams));
+    const grades = new Map();
+    tj.teams.forEach((t, i) => (t.grades?.length ? t.grades : [t.grade]).filter(Boolean).forEach(g => { if (!grades.has(g.id)) grades.set(g.id, { id: g.id, name: g.name, order: i }); }));
+    return { season, grades: [...grades.values()] };
+  };
+  return { cur: await teamsOf(cur), prev: prev ? () => teamsOf(prev) : null };
+}
+
+async function seasonItems(orgId, info){
+  const now = Date.now(), today = dayKey(now);
+  const all = await Promise.all(info.grades.map(g =>
+    apiJSON(`${API}/scores/grades/${g.id}/matches?${Q}`, d => Array.isArray(d.matches))
+      .then(d => d.matches.map(m => ({ m, g }))).catch(e => { warn(`Scores for ${g.name}: ${e.message}`); return []; })));
+  const seen = new Set(), live = [], latest = new Map();
+  for (const { m, g } of all.flat()){
+    if (seen.has(m.id)) continue; seen.add(m.id);
+    const mine = (m.teams || []).filter(t => String(t.owningOrganisation?.id || "").toLowerCase() === orgId);
+    if (!mine.length) continue;
+    const st = String(m.status || "");
+    const batting = (m.teams || []).some(t => t.isBatting);
+    const started = firstDay(m) && firstDay(m) <= now;
+    const isFinal = FINAL.test(st), isPre = PRE.test(st) && !batting;
+    if (!isFinal && !isPre && (started || batting)){
+      const playingToday = (m.matchSchedule || []).some(x => dayKey(Date.parse(x.startDateTime)) === today);
+      live.push({ kind: playingToday ? "live" : "prog", m, g, mine, sort: g.order });
+    } else if (isFinal){
+      for (const t of mine){
+        const prevBest = latest.get(t.id);
+        if (!prevBest || lastDay(m) > lastDay(prevBest.m)) latest.set(t.id, { kind: "result", m, g, mine: [t], sort: g.order });
+      }
+    }
+  }
+  const results = [...latest.values()].sort((a, b) => a.sort - b.sort || lastDay(b.m) - lastDay(a.m));
+  live.sort((a, b) => a.sort - b.sort);
+  await Promise.all(live.filter(it => it.kind === "live").map(async it => {
+    try {
+      const card = await apiJSON(`${API}/scores/matches/${it.m.id}?responseModifier=includeScorecard&${Q}`, d => d && d.id);
+      it.players = livePlayers(card, it.m);
+    } catch (e){ warn("Live scorecard: " + e.message); }
+  }));
+  return { live, results };
+}
+
+// Batters at the crease + current bowler from a match scorecard
+function livePlayers(card, m){
+  const inns = (card.innings || []).slice().sort((a, b) => (a.inningsOrder ?? a.inningsNumber ?? 0) - (b.inningsOrder ?? b.inningsNumber ?? 0));
+  if (!inns.length) return null;
+  const batTeam = ((card.matchSummary?.teams) || card.teams || m.teams || []).find(t => t.isBatting);
+  const cur = (batTeam && [...inns].reverse().find(i => i.battingTeamId === batTeam.id)) || inns[inns.length - 1];
+  const bat = cur.batting || [], bowl = cur.bowling || [];
+  let crease = bat.filter(b => b.isOnStrike || b.isOnNonStrike);
+  if (!crease.length) crease = bat.filter(b => (b.dismissalTypeId === 1 || /^not out$/i.test(b.dismissalType || "")) && !/did not|dnb/i.test(b.dismissalText || "")).slice(-2);
+  crease.sort((a, b) => (b.isOnStrike ? 1 : 0) - (a.isOnStrike ? 1 : 0) || (a.batOrder || 0) - (b.batOrder || 0));
+  const bowler = bowl.find(b => b.isBowling);
+  if (!crease.length && !bowler) return null;
+  return { crease: crease.slice(0, 2), bowler };
+}
+function playersHTML(pl){
+  if (!pl) return "";
+  const bats = pl.crease.map(b => `<span class="tk-bat${b.isOnStrike ? " strike" : ""}">${esc(b.playerShortName || "")}<b>${esc(b.runsScored ?? 0)}*</b><small>(${esc(b.ballsFaced ?? 0)})</small></span>`).join("");
+  const w = pl.bowler;
+  const bowl = w ? `<span class="tk-bowl"><i>Bowling</i>${esc(w.playerShortName || "")}<b>${esc(w.wicketsTaken ?? 0)}/${esc(w.runsConceded ?? 0)}</b><small>(${esc(w.oversBowled ?? 0)} ov${w.maidensBowled ? `, ${esc(w.maidensBowled)} m` : ""})</small></span>` : "";
+  return `<span class="tk-pl">${bats}${bowl}</span>`;
+}
+
+function tickerItemHTML(it, seasonLabel){
+  const { m, g } = it, meId = it.mine[0].id;
+  const teams = (m.teams || []).slice().sort((a, b) => (b.id === meId) - (a.id === meId));
+  const [me, opp] = teams;
+  const score = t => t ? `${esc(t.displayName)}${t.scoreText ? ` <b>${esc(t.scoreText)}${it.kind !== "result" && t.isBatting ? "*" : ""}</b>` : ""}` : "";
+  let badge;
+  if (it.kind === "live") badge = `<span class="tk-badge live">Live</span>`;
+  else if (it.kind === "prog") badge = `<span class="tk-badge prog">In progress</span>`;
+  else if (me.isWinner) badge = `<span class="tk-badge won">Won</span>`;
+  else if (opp && opp.isWinner) badge = `<span class="tk-badge lost">Lost</span>`;
+  else badge = `<span class="tk-badge draw">${/ABANDON/i.test(m.status) && !/drawn/i.test(m.resultText || "") ? "Abandoned" : "Draw"}</span>`;
+  const round = m.round?.shortName ? `${esc(m.round.shortName)} · ` : "";
+  const res = m.resultText && !/\(local time\)/i.test(m.resultText) ? `<span class="tk-res">${esc(m.resultText)}</span>` : "";
+  return `<span class="tk-item">${badge}<span class="tk-grade">${seasonLabel ? esc(seasonLabel) + " · " : ""}${round}${esc(titleCase(g.name))}</span>` +
+    `<span class="tk-team me">${score(me)}</span>${opp ? `<span class="tk-v">v</span><span class="tk-team">${score(opp)}</span>` : ""}${it.players ? playersHTML(it.players) : res}</span><span class="tk-sep">◆</span>`;
+}
+
+function startTicker(club, bar){
+  if (!CONFIG.TICKER || !club.pcId) return;
+  const box = document.createElement("div");
+  box.className = "ticker"; box.hidden = true;
+  box.innerHTML = `<div class="tk-track"></div>`;
+  bar.querySelector(".dots").before(box);
+  const track = box.firstElementChild;
+  let pending = null, structure = null, structT = 0;
+
+  const apply = html => {
+    const one = `<div class="tk-set">${html}</div>`;
+    track.innerHTML = one;
+    const set = track.firstElementChild;
+    let reps = 1;
+    while (set.offsetWidth < box.clientWidth && reps < 20){ set.insertAdjacentHTML("beforeend", html); reps++; }
+    track.insertAdjacentHTML("beforeend", `<div class="tk-set" aria-hidden="true">${set.innerHTML}</div>`);
+    const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    track.style.setProperty("--tkdur", Math.max(8, set.offsetWidth / (root * CONFIG.TICKER_SPEED)) + "s");
+    track.style.animation = "none"; void track.offsetWidth; track.style.animation = "";
+  };
+  track.addEventListener("animationiteration", () => { if (pending !== null){ const h = pending; pending = null; apply(h); } });
+
+  async function refresh(){
+    try {
+      if (!structure || Date.now() - structT > 6 * 3600e3){ structure = await clubStructure(club.pcId); structT = Date.now(); }
+      let label = "", data = structure.cur ? await seasonItems(club.pcId, structure.cur) : { live: [], results: [] };
+      if (!data.live.length && !data.results.length && structure.prev){
+        if (typeof structure.prev === "function") structure.prev = await structure.prev();
+        if (structure.prev){ data = await seasonItems(club.pcId, structure.prev); label = structure.prev.season.name.replace(/^Summer\s*/i, ""); }
+      }
+      hasLive = data.live.length > 0;
+      const items = [...data.live, ...data.results];
+      if (!items.length){ box.hidden = true; bar.classList.remove("has-ticker"); return; }
+      const html = items.map(it => tickerItemHTML(it, it.kind === "result" ? label : "")).join("");
+      if (box.hidden){ box.hidden = false; bar.classList.add("has-ticker"); apply(html); }
+      else if (html !== box.dataset.last) pending = html;
+      box.dataset.last = html;
+    } catch (e){ warn("Scores ticker: " + e.message); }
+  }
+  let hasLive = false;
+  (async function loop(){
+    await refresh();
+    setTimeout(loop, (hasLive ? CONFIG.TICKER_LIVE_REFRESH_MINUTES : CONFIG.TICKER_REFRESH_MINUTES) * 60e3);
+  })();
+}
+
 /* ---------- screens ---------- */
 function notice(title, msg, back){
   app.innerHTML = `<div class="backdrop"></div><div class="notice"><div class="box"><h2>${esc(title)}</h2><p>${esc(msg)}</p>${back ? `<a href="${esc(location.pathname)}">‹ Back to club list</a>` : ""}</div></div>`;
@@ -515,6 +726,7 @@ async function runClub(club){
     <div class="toast" id="toast"></div>`;
   const stage = document.getElementById("stage"), prog = document.getElementById("prog"), dots = document.getElementById("dots");
 
+  startTicker(club, document.querySelector(".bar"));
   const tick = () => document.getElementById("clock").textContent = new Date().toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
   tick(); setInterval(tick, 1000);
 
