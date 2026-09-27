@@ -22,6 +22,9 @@
         Gallery:     Link = a Google Drive folder link (shared "Anyone with the link: Viewer");
                      Details = how many images to show at once (default 1). Shows the next set each rotation.
         Honours:     Link = tab name (or link to a tab); Filename = title. One page per rotation.
+        YouTube:     Link = any YouTube link (watch, youtu.be, shorts, embed; &t= start time is used).
+                     Length = seconds to play (blank = whole video, up to YOUTUBE_MAX_MINUTES).
+                     Details = "sound" to try playing with sound (TVs usually need a click on the page first).
         Length = seconds on screen
    4. Share every sheet/folder as "Anyone with the link: Viewer".
    5. Open  yourpage.html?club=Omega  on the TV (the club list links there). Add &debug to show skipped-slide messages.
@@ -202,6 +205,11 @@
   .g-grid.one .g-tile{border-radius:0;box-shadow:none;background:none}
   .g-tile .blur{position:absolute;inset:-8%;background-size:cover;background-position:center;filter:blur(2.4rem) brightness(.45) saturate(1.2)}
   .g-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  /* YouTube */
+  .youtube{background:#000}
+  .youtube .yt-box{position:absolute;inset:0}
+  .youtube iframe{width:100%;height:100%;border:0;pointer-events:none}
+
   /* Paused badge */
   .paused{position:fixed;top:14px;right:14px;z-index:6;font:700 14px "Barlow",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:8px 14px;border-radius:99px;background:rgba(215,38,61,.92);color:#fff;display:none}
   body.is-paused .paused{display:block}
@@ -267,6 +275,7 @@ const CONFIG = {
   // Leave blank if Image rows use a Google Drive share link in the Link column instead.
   GOOGLE_API_KEY: "AIzaSyC-i38xOyYQItTkBf7XbgQBQM0xVolgCCQ",
   DEFAULT_SECONDS: 10,     // used when Length is blank
+  YOUTUBE_MAX_MINUTES: 10, // longest a YouTube slide plays when Length is blank
   GALLERY_MAX: 24,         // most images a Gallery slide will show at once
   IMAGE_STORE_MB: 400,     // images kept on this device between visits (least-recently-shown are dropped first).
                            // The browser may allow less on small devices; 0 turns the store off.
@@ -480,6 +489,11 @@ async function buildSlides(club){
         src = driveImg(f.id); alt = driveImgAlt(f.id);
       }
       slides.push({ kind: type, src, alt, secs, details: String(r.details || r.detail || "").trim() });
+    } else if (type === "youtube" || type === "video"){
+      const v = youtubeInfo(link);
+      if (!v) { warn(`YouTube: "${link}" isn't a YouTube link — skipped.`); continue; }
+      const len = num(r.length, NaN);
+      slides.push({ kind: "youtube", ...v, secs: isFinite(len) && len > 0 ? len : null, sound: /sound|audio|unmute/i.test(String(r.details || "")) });
     } else if (type === "gallery"){
       const per = Math.max(1, Math.min(CONFIG.GALLERY_MAX, parseInt(String(r.details ?? "").trim(), 10) || 1));
       try {
@@ -493,6 +507,63 @@ async function buildSlides(club){
     } else warn(`Unknown Type "${r.type}" — skipped.`);
   }
   return slides;
+}
+
+/* ---------- YouTube ---------- */
+function youtubeInfo(url){
+  url = String(url || "").trim();
+  const m = url.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/))([\w-]{11})/i) || url.match(/^([\w-]{11})$/);
+  if (!m) return null;
+  const t = (url.match(/[?&#](?:t|start)=(\d+h)?(\d+m)?(\d+)s?/) || []);
+  const start = (parseInt(t[1]) || 0) * 3600 + (parseInt(t[2]) || 0) * 60 + (parseInt(t[3]) || 0);
+  return { vid: m[1], start };
+}
+let ytApi = null;
+function loadYouTubeApi(){
+  if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+  if (ytApi) return ytApi;
+  ytApi = new Promise((ok, fail) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) try { prev(); } catch (e){} ok(window.YT); };
+    const sc = document.createElement("script");
+    sc.src = "https://www.youtube.com/iframe_api"; sc.onerror = () => { ytApi = null; fail(new Error("YouTube couldn't be reached")); };
+    document.head.appendChild(sc);
+    setTimeout(() => fail(new Error("YouTube took too long to load")), 20000);
+  });
+  return ytApi;
+}
+const YT_ERR = { 2: "bad video link", 5: "video can't play here", 100: "video not found or private", 101: "owner doesn't allow embedding", 150: "owner doesn't allow embedding", 153: "video can't play here" };
+// Builds the player; resolves once the video is playing (or rejects). el._secs = how long to show it.
+function makeYouTube(s, el){
+  return loadYouTubeApi().then(YT => new Promise((ok, fail) => {
+    const box = document.createElement("div"); box.className = "yt-box";
+    const holder = document.createElement("div"); box.appendChild(holder); el.appendChild(box);
+    let done = false;
+    const finishOk = () => { if (done) return; done = true; clearTimeout(to); ok(); };
+    const finishBad = m => { if (done) return; done = true; clearTimeout(to); try { player.destroy(); } catch (e){} fail(new Error(m)); };
+    const to = setTimeout(() => finishBad("video didn't start"), 20000);
+    const player = new YT.Player(holder, {
+      videoId: s.vid, width: "100%", height: "100%",
+      playerVars: { autoplay: 1, mute: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, fs: 0, start: s.start || 0 },
+      events: {
+        onReady: e => {
+          el._player = e.target;
+          const dur = e.target.getDuration() || 0;
+          el._secs = s.secs || Math.min(Math.max(5, dur - (s.start || 0)) || CONFIG.YOUTUBE_MAX_MINUTES * 60, CONFIG.YOUTUBE_MAX_MINUTES * 60);
+          if (s.sound){ try { e.target.unMute(); e.target.setVolume(100); } catch (x){} }
+          e.target.playVideo();
+          // If sound was blocked by the browser, carry on muted
+          if (s.sound) setTimeout(() => { try { if (e.target.getPlayerState() !== 1){ e.target.mute(); e.target.playVideo(); } } catch (x){} }, 1500);
+        },
+        onStateChange: e => {
+          if (e.data === 1){ if (!el._secs){ const d = e.target.getDuration(); if (d) el._secs = s.secs || Math.min(d - (s.start || 0), CONFIG.YOUTUBE_MAX_MINUTES * 60); } finishOk(); }
+          if (e.data === 0 && el._onEnd) el._onEnd();       // video finished
+        },
+        onError: e => { const m = "YouTube: " + (YT_ERR[e.data] || "error " + e.data); if (done){ if (el._onEnd) el._onEnd(); warn(m); } else finishBad(m); }
+      }
+    });
+    el._player = player;
+  }));
 }
 
 /* ---------- gallery ---------- */
@@ -847,6 +918,10 @@ async function makeSlide(s, club, stage, page){
     el.innerHTML = honoursHTML({ ...s, ...pg }, club); stage.appendChild(el);
     await Promise.all([...el.querySelectorAll("img")].map(i => i.complete ? 0 : new Promise(r => { i.addEventListener("load", r); i.addEventListener("error", () => setTimeout(r, 0)); setTimeout(r, 8000); })));
     fitHonours(el);
+  } else if (s.kind === "youtube"){
+    stage.appendChild(el);
+    try { await makeYouTube(s, el); }
+    catch (e){ el.remove(); throw e; }
   } else if (s.kind === "gallery"){
     const n = nextPage(); el._page = n;
     const picks = galleryPick(s, n);
@@ -1160,18 +1235,20 @@ async function runClub(club){
   const wait = ms => new Promise(r => { resolveWait = r; waitMs = ms; waitStart = Date.now(); if (paused) remain = ms; else timer = setTimeout(finish, ms); });
   const ppBtn = document.getElementById("pp");
   function pause(){
-    if (paused) return; paused = true; document.body.classList.add("is-paused"); ppBtn.textContent = "▶ Play";
+    if (paused) return; paused = true; document.body.classList.add("is-paused"); ppBtn.textContent = "▶ Play"; vid("pauseVideo");
     if (timer){ clearTimeout(timer); timer = null; remain = Math.max(0, waitMs - (Date.now() - waitStart)); }
     const w = getComputedStyle(prog).width; prog.style.transition = "none"; prog.style.width = w;
     clearTimeout(autoResume);
     if (CONFIG.PAUSE_RESUME_MINUTES > 0) autoResume = setTimeout(play, CONFIG.PAUSE_RESUME_MINUTES * 60e3);
   }
   function play(){
-    if (!paused) return; paused = false; document.body.classList.remove("is-paused"); ppBtn.textContent = "⏸ Pause"; clearTimeout(autoResume);
+    if (!paused) return; paused = false; document.body.classList.remove("is-paused"); ppBtn.textContent = "⏸ Pause"; clearTimeout(autoResume); vid("playVideo");
     if (resolveWait){ waitStart = Date.now(); waitMs = remain; timer = setTimeout(finish, remain);
       void prog.offsetWidth; prog.style.transition = `width ${remain / 1000}s linear`; prog.style.width = "100%"; }
   }
   const togglePause = () => paused ? play() : pause();
+  let current = null;   // slide element on screen (for video control)
+  const vid = f => { try { if (current && current._player && current._player[f]) current._player[f](); } catch (e){} };
   const goNext = () => { nav = "fwd"; finish(); };
   const goBack = () => { if (hpos > 0){ nav = "back"; finish(); } };
   document.getElementById("bk").onclick = goBack;
@@ -1191,7 +1268,9 @@ async function runClub(club){
     stage.querySelectorAll(".notice").forEach(n => n.remove());
     const old = [...stage.querySelectorAll(".slide.on")];
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("on")));
-    old.forEach(o => { o.classList.remove("on"); setTimeout(() => { (o._blobs || []).forEach(u => URL.revokeObjectURL(u)); o.remove(); }, 1000); });
+    old.forEach(o => { o.classList.remove("on"); try { o._player && o._player.stopVideo && o._player.stopVideo(); } catch (e){}
+      setTimeout(() => { (o._blobs || []).forEach(u => URL.revokeObjectURL(u)); try { o._player && o._player.destroy && o._player.destroy(); } catch (e){} o.remove(); }, 1000); });
+    current = el; el._onEnd = () => { if (current === el && !paused) finish(); };
   };
   const progress = secs => {
     prog.style.transition = "none"; prog.style.width = "0"; void prog.offsetWidth;
@@ -1211,14 +1290,15 @@ async function runClub(club){
       let el;
       try { el = await makeSlide(h.s, club, stage, h.page); }
       catch (e){ warn("Couldn't re-show that slide: " + e.message); continue; }
-      show(el); markDot(h.i); progress(h.s.secs);
-      await wait(h.s.secs * 1000);
+      const hs = el._secs || h.s.secs || CONFIG.DEFAULT_SECONDS;
+      show(el); markDot(h.i); progress(hs);
+      await wait(hs * 1000);
       continue;
     }
     nav = null;
     if (idx + 1 >= slides.length){
       if (idx >= 0 && slides.length && CONFIG.SPLASH_EVERY > 0 && ++rotations % CONFIG.SPLASH_EVERY === 0){
-        show(await makeSplash(stage));
+        show(await makeSplash(stage)); current = null;
         dots.querySelectorAll(".dot").forEach(d => d.classList.remove("on"));
         progress(CONFIG.SPLASH_SECONDS);
         await wait(CONFIG.SPLASH_SECONDS * 1000);
@@ -1252,10 +1332,11 @@ async function runClub(club){
     hist = hist.slice(0, hpos + 1); hist.push({ s, page: el._page, i: idx });
     if (hist.length > 60) hist.shift();
     hpos = hist.length - 1;
-    show(el); markDot(idx); progress(s.secs);
+    const secs = el._secs || s.secs || CONFIG.DEFAULT_SECONDS;
+    show(el); markDot(idx); progress(secs);
     const upcoming = slides[idx + 1] || slides[0];
     if (upcoming) setTimeout(() => prefetchSlide(upcoming), 1500);
-    await wait(s.secs * 1000);
+    await wait(secs * 1000);
   }
 }
 
