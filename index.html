@@ -19,6 +19,9 @@
         Sponsor:     Link = image URL (web or Google Drive link)
         Image:       Filename = file name in the club's Drive folder (needs GOOGLE_API_KEY),
                      or paste the image's Google Drive share link into Link (no key needed)
+        Gallery:     Link = a Google Drive folder link (shared "Anyone with the link: Viewer");
+                     Details = how many images to show at once (default 1). Shows the next set each rotation.
+        Honours:     Link = tab name (or link to a tab); Filename = title. One page per rotation.
         Length = seconds on screen
    4. Share every sheet/folder as "Anyone with the link: Viewer".
    5. Open  yourpage.html?club=Omega  on the TV (the club list links there). Add &debug to show skipped-slide messages.
@@ -192,6 +195,18 @@
   .h-card li:last-child{border-bottom:0}
   .h-card li strong{color:#fff;font-weight:700}
 
+  /* Gallery */
+  .g-grid{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));grid-template-rows:repeat(var(--rows),minmax(0,1fr));gap:1rem;padding:1.4rem}
+  .g-grid.one{padding:0;gap:0}
+  .g-tile{position:relative;overflow:hidden;border-radius:.9rem;background:rgba(0,0,0,.35);box-shadow:0 .6rem 1.6rem rgba(0,0,0,.45)}
+  .g-grid.one .g-tile{border-radius:0;box-shadow:none;background:none}
+  .g-tile .blur{position:absolute;inset:-8%;background-size:cover;background-position:center;filter:blur(2.4rem) brightness(.45) saturate(1.2)}
+  .g-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  /* Paused badge */
+  .paused{position:fixed;top:14px;right:14px;z-index:6;font:700 14px "Barlow",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:8px 14px;border-radius:99px;background:rgba(215,38,61,.92);color:#fff;display:none}
+  body.is-paused .paused{display:block}
+  html.fixed .paused{right:auto;left:calc(var(--W) - 140px)}
+
   /* RKT Sport branding */
   .brand{display:flex;align-items:center;gap:20px}
   .brand-badge{flex:0 0 auto;background:#fff;border-radius:18px;padding:10px 16px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
@@ -229,7 +244,8 @@
   body.tv-mode:not(.awake){cursor:none}
   .btn{font:600 14px "Barlow",sans-serif;padding:8px 14px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(0,0,0,.6);color:#fff;cursor:pointer;text-decoration:none}
   .btn:hover{background:rgba(0,0,0,.8)}
-  body.panel-open .ctrl{opacity:1;pointer-events:auto}
+  body.panel-open .ctrl,body.is-paused .ctrl{opacity:1;pointer-events:auto}
+  body.is-paused.tv-mode{cursor:default}
   .wpanel{position:fixed;top:56px;left:14px;z-index:6;background:#12141c;border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;font:500 14px "Barlow",sans-serif;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.6);width:280px}
   .wpanel[hidden]{display:none}
   .wpanel label{color:rgba(255,255,255,.75)}
@@ -251,6 +267,10 @@ const CONFIG = {
   // Leave blank if Image rows use a Google Drive share link in the Link column instead.
   GOOGLE_API_KEY: "",
   DEFAULT_SECONDS: 10,     // used when Length is blank
+  GALLERY_MAX: 24,         // most images a Gallery slide will show at once
+  IMAGE_STORE_MB: 400,     // images kept on this device between visits (least-recently-shown are dropped first).
+                           // The browser may allow less on small devices; 0 turns the store off.
+  PAUSE_RESUME_MINUTES: 5, // a paused screen carries on by itself after this long (0 = stay paused)
   REFRESH_MINUTES: 5,      // how often sheet changes are picked up (checked at the end of each rotation)
   LADDER_CACHE_MINUTES: 15,
   SPONSOR_HEADING: "Proudly sponsored by",
@@ -456,12 +476,136 @@ async function buildSlides(club){
         src = driveImg(f.id); alt = driveImgAlt(f.id);
       }
       slides.push({ kind: type, src, alt, secs, details: String(r.details || r.detail || "").trim() });
+    } else if (type === "gallery"){
+      const per = Math.max(1, Math.min(CONFIG.GALLERY_MAX, parseInt(String(r.details ?? "").trim(), 10) || 1));
+      try {
+        const files = await galleryFiles(link);
+        if (!files.length) throw new Error("no images found in the folder");
+        slides.push({ kind: "gallery", key: "g|" + link, files, per, secs });
+      } catch (e){ warn(`Gallery: ${e.message}`); }
     } else if (/^hono(u)?r|^lifemember|^awards?$/.test(type)){
       try { slides.push(...await honoursSlides(club, link, fname, secs)); }
       catch (e){ warn(`Honours "${fname || link}": ${e.message}`); }
     } else warn(`Unknown Type "${r.type}" — skipped.`);
   }
   return slides;
+}
+
+/* ---------- gallery ---------- */
+const galleryLists = new Map();   // folder -> { t, files } (listing re-read every 30 min)
+const IMG_EXT = /\.(jpe?g|png|webp|gif|avif|bmp|heic|heif)$/i;
+async function galleryFiles(link){
+  const folder = folderIdOf(link);
+  if (!/^[\w-]{10,}$/.test(folder)) throw new Error("Link needs to be a Google Drive folder link");
+  const hit = galleryLists.get(folder);
+  if (hit && Date.now() - hit.t < 30 * 60e3) return hit.files;
+  let files = [];
+  try {
+    if (CONFIG.GOOGLE_API_KEY){
+      let token = "";
+      do {
+        const q = encodeURIComponent(`'${folder}' in parents and trashed=false and mimeType contains 'image/'`);
+        const j = await driveGet(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=name&fields=nextPageToken,files(id,name)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&key=${CONFIG.GOOGLE_API_KEY}${token ? "&pageToken=" + token : ""}`);
+        files.push(...(j.files || [])); token = j.nextPageToken || "";
+      } while (token);
+    } else {
+      // No API key: read Drive's public "embedded folder" page (via the relays) and pick out the files
+      const html = await apiText(`https://drive.google.com/embeddedfolderview?id=${folder}`, t => /flip-entry|drive/i.test(t));
+      for (const m of html.matchAll(/id="entry-([\w-]{20,})"[\s\S]*?flip-entry-title">([^<]*)</g)){
+        const id = m[1], name = m[2].replace(/&amp;/g, "&").replace(/&#39;/g, "'").trim();
+        if (html.includes(`/folders/${id}`) && !html.includes(`/file/d/${id}`)) continue;   // skip sub-folders
+        if (name && /\.[a-z0-9]{2,5}$/i.test(name) && !IMG_EXT.test(name)) continue;       // skip non-images
+        if (!files.some(f => f.id === id)) files.push({ id, name });
+      }
+    }
+  } catch (e){ if (hit) return hit.files; throw e; }
+  files.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: "base" }));
+  galleryLists.set(folder, { t: Date.now(), files });
+  return files;
+}
+// Best grid for n photos in the stage (maximises photo size, assuming roughly 3:2 photos)
+function galleryGrid(n, W, H){
+  let best = { cols: 1, rows: n, a: 0 };
+  for (let cols = 1; cols <= n; cols++){
+    const rows = Math.ceil(n / cols), tw = W / cols, th = H / rows, w = Math.min(tw, th * 1.5), a = w * (w / 1.5);
+    if (a > best.a) best = { cols, rows, a };
+  }
+  return best;
+}
+const galleryUrls = (id, cols) => { const w = cols >= 3 ? 800 : cols === 2 ? 1280 : 1920; return { src: `https://lh3.googleusercontent.com/d/${id}=w${w}`, alt: `https://drive.google.com/thumbnail?id=${id}&sz=w${w}` }; };
+function galleryPick(s, page){ const out = []; for (let i = 0; i < s.per && i < s.files.length; i++) out.push(s.files[(page * s.per + i) % s.files.length]); return out; }
+
+/* ---------- on-device image store ---------- */
+// Keeps downloaded images in the browser's Cache Storage so they survive reloads, up to IMAGE_STORE_MB.
+// Only works where the image host allows it (CORS); otherwise the browser's normal cache is used.
+const STORE = "rkttv-images-v1", STORE_IDX = "rkttv-images-idx";
+const storeOn = () => CONFIG.IMAGE_STORE_MB > 0 && typeof caches !== "undefined" && window.isSecureContext;
+const corsBad = new Set();
+let storeIdx = null, storeLimit = null, idxTimer = null;
+function idx(){ if (!storeIdx){ try { storeIdx = JSON.parse(localStorage.getItem(STORE_IDX) || "{}"); } catch (e){ storeIdx = {}; } } return storeIdx; }
+function saveIdx(){ clearTimeout(idxTimer); idxTimer = setTimeout(() => { try { localStorage.setItem(STORE_IDX, JSON.stringify(storeIdx)); } catch (e){} }, 2000); }
+async function limitBytes(){
+  if (storeLimit !== null) return storeLimit;
+  let lim = CONFIG.IMAGE_STORE_MB * 1048576;
+  try { const est = await navigator.storage.estimate(); if (est.quota) lim = Math.min(lim, est.quota * 0.5); } catch (e){}
+  try { navigator.storage.persist && navigator.storage.persist(); } catch (e){}
+  return (storeLimit = lim);
+}
+async function trimStore(c){
+  const ix = idx(), lim = await limitBytes();
+  let total = Object.values(ix).reduce((a, v) => a + (v[0] || 0), 0);
+  if (total <= lim) return;
+  for (const [u] of Object.entries(ix).sort((a, b) => a[1][1] - b[1][1])){
+    if (total <= lim * 0.9) break;
+    total -= ix[u][0] || 0; delete ix[u]; try { await c.delete(u); } catch (e){}
+  }
+  saveIdx();
+}
+// Returns a blob: URL for the image (from the store, or downloaded and stored), or null if it can't be stored.
+async function storedSrc(url){
+  if (!storeOn() || !url) return null;
+  let host; try { host = new URL(url, location.href).host; } catch (e){ return null; }
+  if (corsBad.has(host)) return null;
+  try {
+    const c = await caches.open(STORE), ix = idx();
+    let res = await c.match(url), blob;
+    if (res){ blob = await res.blob(); }
+    else {
+      let r;
+      try { r = await fetch(url, { mode: "cors", credentials: "omit" }); }
+      catch (e){ corsBad.add(host); return null; }              // host doesn't allow it: fall back to normal loading
+      if (!r.ok) return null;
+      blob = await r.blob();
+      if (!/^image\//i.test(blob.type) || !blob.size) return null;
+      await c.put(url, new Response(blob, { headers: { "content-type": blob.type } }));
+      ix[url] = [blob.size, Date.now()]; trimStore(c);
+    }
+    ix[url] = [blob.size, Date.now()]; saveIdx();
+    return URL.createObjectURL(blob);
+  } catch (e){ return null; }
+}
+// Image for display: stored copy if possible, else normal load (with fallback URL). Returns { src, blob }.
+async function displaySrc(url, alt){
+  for (const u of [url, alt].filter(Boolean)){
+    if (failedSrc.has(u) && u === url && alt) continue;
+    const b = await storedSrc(u);
+    if (b){ try { await loadImg(b, 20000); return { src: b, blob: true }; } catch (e){ URL.revokeObjectURL(b); } }
+  }
+  return { src: await loadAny(url, alt), blob: false };
+}
+// Download the next slide's images in the background so they're ready (and stored)
+async function prefetchSlide(s){
+  try {
+    let urls = [];
+    if (s.kind === "gallery"){
+      const page = pageTurns.get(s.key) || 0, g = galleryGrid(Math.min(s.per, s.files.length), 16, 9);
+      urls = galleryPick(s, page).map(f => galleryUrls(f.id, g.cols));
+    } else if (s.kind === "sponsor" || s.kind === "image") urls = [{ src: s.src, alt: s.alt }];
+    for (const u of urls){
+      const b = await storedSrc(u.src);
+      if (b) URL.revokeObjectURL(b); else await loadImg(u.src).catch(() => u.alt && loadImg(u.alt)).catch(() => {});
+    }
+  } catch (e){}
 }
 
 /* ---------- honours ---------- */
@@ -545,7 +689,8 @@ document.addEventListener("error", e => {
     failedSrc.add(t.getAttribute("src")); t.dataset.tried = "1"; e.stopImmediatePropagation(); t.src = t.dataset.alt;
   }
 }, true);
-// Loaded images are kept for the life of the page so each is only downloaded once
+// Recently loaded images are kept in memory (capped so TV sticks don't run out of memory);
+// older ones come back from the browser's own cache
 const imgCache = new Map(), keepImgs = new Map();
 const failedSrc = new Set();   // resized URLs that failed: go straight to the original next time
 const useSrc = (src, alt) => (alt && failedSrc.has(src)) ? alt : src;
@@ -553,13 +698,13 @@ function loadImg(src, ms = 20000){
   if (imgCache.has(src)) return imgCache.get(src);
   const p = loadImgOnce(src, ms);
   imgCache.set(src, p); p.catch(() => imgCache.delete(src));
-  if (imgCache.size > 150) imgCache.delete(imgCache.keys().next().value);
+  if (imgCache.size > 60) imgCache.delete(imgCache.keys().next().value);
   return p;
 }
 function loadImgOnce(src, ms){
   return new Promise((ok, fail) => {
     const img = new Image(); const t = setTimeout(() => fail(new Error("Timed out loading " + src)), ms);
-    img.onload = () => { clearTimeout(t); keepImgs.set(src, img); if (keepImgs.size > 150) keepImgs.delete(keepImgs.keys().next().value); ok(src); };
+    img.onload = () => { clearTimeout(t); keepImgs.set(src, img); if (keepImgs.size > 12) keepImgs.delete(keepImgs.keys().next().value); ok(src); };
     img.onerror = () => { clearTimeout(t); fail(new Error("Couldn't load " + src)); };
     img.src = src;
   });
@@ -578,14 +723,24 @@ function ladderUrl(v){
 }
 const ladderCache = new Map();
 let apiRoute = null;   // route that last worked (-1 = direct, 0.. = relay index)
-async function apiVia(route, url){
+async function apiVia(route, url, raw){
   const target = route < 0 ? url : CONFIG.LADDER_PROXIES[route] + encodeURIComponent(url);
-  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20000);
   try {
     const res = await fetch(target, { cache: "no-store", signal: ctl.signal, credentials: "omit" });
     if (!res.ok) throw new Error("HTTP " + res.status);
-    return JSON.parse(await res.text());
+    const text = await res.text();
+    return raw ? text : JSON.parse(text);
   } finally { clearTimeout(t); }
+}
+// Same as apiJSON but returns text (used to read a public Drive folder page through the relays)
+async function apiText(url, ok = () => true){
+  const errs = [];
+  for (const r of [-1, ...CONFIG.LADDER_PROXIES.map((_, i) => i)]){
+    try { const t = await apiVia(r, url, true); if (!ok(t)) throw new Error("unexpected response"); return t; }
+    catch (e){ errs.push((r < 0 ? "direct" : "relay " + (r + 1)) + ": " + e.message); }
+  }
+  throw new Error(errs.join("; "));
 }
 // Fetch cricket.com.au JSON, directly or via a relay. `ok` checks the response looks right.
 async function apiJSON(url, ok = () => true){
@@ -665,29 +820,42 @@ function fitLadder(el, n, k){
 }
 
 /* ---------- slide builders ---------- */
-async function makeSlide(s, club, stage){
+// page: which page/set to show for Honours/Gallery (omit to take the next one in turn)
+async function makeSlide(s, club, stage, page){
   const el = document.createElement("div");
   el.className = "slide " + s.kind;
+  el._blobs = [];
+  const nextPage = () => { if (page !== undefined) return page; const n = pageTurns.get(s.key) || 0; pageTurns.set(s.key, n + 1); return n; };
   if (s.kind === "ladder"){
     const entry = await getLadder(s.url);
     const L = ladderHTML(entry, s, club);
     el.innerHTML = L.html; stage.appendChild(el); fitLadder(el, L.n, L.k);
   } else if (s.kind === "honours"){
-    const n = pageTurns.get(s.key) || 0;
-    pageTurns.set(s.key, n + 1);
+    const n = nextPage(); el._page = n;
     const pg = s.pageList[n % s.pageList.length];
     el.innerHTML = honoursHTML({ ...s, ...pg }, club); stage.appendChild(el);
     await Promise.all([...el.querySelectorAll("img")].map(i => i.complete ? 0 : new Promise(r => { i.addEventListener("load", r); i.addEventListener("error", () => setTimeout(r, 0)); setTimeout(r, 8000); })));
     fitHonours(el);
+  } else if (s.kind === "gallery"){
+    const n = nextPage(); el._page = n;
+    const picks = galleryPick(s, n);
+    const g = galleryGrid(picks.length, stage.clientWidth || 16, stage.clientHeight || 9);
+    const got = await Promise.all(picks.map(f => { const u = galleryUrls(f.id, g.cols); return displaySrc(u.src, u.alt).catch(() => null); }));
+    if (!got.some(Boolean)) throw new Error("gallery images couldn't be loaded");
+    got.forEach(x => x && x.blob && el._blobs.push(x.src));
+    el.innerHTML = `<div class="g-grid${picks.length === 1 ? " one" : ""}" style="--cols:${g.cols};--rows:${g.rows};height:100%">${got.map(x => x
+      ? `<div class="g-tile"><div class="blur" style="background-image:url('${esc(x.src)}')"></div><img src="${esc(x.src)}" alt=""></div>`
+      : `<div class="g-tile"></div>`).join("")}</div>`;
+    stage.appendChild(el);
   } else if (s.kind === "sponsor"){
-    const src = await loadAny(s.src, s.alt);
+    const d = await displaySrc(s.src, s.alt), src = d.src; if (d.blob) el._blobs.push(src);
     const lines = String(s.details || "").split("|").map(x => x.trim()).filter(Boolean);
     const imgH = Math.max(15, 27 - lines.length * 3.2);
     el.innerHTML = `<div class="s-kicker">${esc(CONFIG.SPONSOR_HEADING)}</div><div class="s-panel"><img src="${esc(src)}" alt="Sponsor" style="height:${imgH}rem"></div>` +
       (lines.length ? `<div class="s-details">${lines.map((l, i) => `<div class="${i === 0 ? "first" : ""}">${esc(l)}</div>`).join("")}</div>` : "");
     stage.appendChild(el);
   } else {
-    const src = await loadAny(s.src, s.alt);
+    const d = await displaySrc(s.src, s.alt), src = d.src; if (d.blob) el._blobs.push(src);
     el.innerHTML = `<div class="blur" style="background-image:url('${esc(src)}')"></div><img class="main" src="${esc(src)}" alt="">`;
     stage.appendChild(el);
   }
@@ -943,7 +1111,8 @@ async function runClub(club){
         <div class="clock" id="clock"></div>
       </div>
     </div>
-    <div class="ctrl"><a class="btn" href="${esc(location.pathname)}">‹ Clubs</a><button class="btn" id="fs">Full screen</button><button class="btn" id="setw">Set width</button></div>
+    <div class="ctrl"><a class="btn" href="${esc(location.pathname)}">‹ Clubs</a><button class="btn" id="bk" title="Back (←)">⏮ Back</button><button class="btn" id="pp" title="Pause / play (space)">⏸ Pause</button><button class="btn" id="nx" title="Next (→)">Next ⏭</button><button class="btn" id="fs">Full screen</button><button class="btn" id="setw">Set width</button></div>
+    <div class="paused">❚❚ Paused</div>
     <div class="wpanel" id="wpanel" hidden>
       <label for="wval">Display width in pixels</label>
       <div class="row"><input id="wval" inputmode="numeric" placeholder="e.g. 1280 or 1280x400"></div>
@@ -972,11 +1141,35 @@ async function runClub(club){
   document.getElementById("wclose").onclick = closePanel;
   wv.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter"){ setDisplaySize(wv.value); closePanel(); } if (e.key === "Escape") closePanel(); });
 
-  let slides = [], idx = -1, lastLoad = 0, fails = 0, rotations = 0, skip = () => {};
-  const wait = ms => new Promise(r => { const t = setTimeout(r, ms); skip = () => { clearTimeout(t); r(); }; });
+  let slides = [], idx = -1, lastLoad = 0, fails = 0, rotations = 0;
+
+  // ---- timing with pause support ----
+  let paused = false, timer = null, resolveWait = null, waitStart = 0, waitMs = 0, remain = 0, autoResume = null, nav = null;
+  const finish = () => { clearTimeout(timer); timer = null; const r = resolveWait; resolveWait = null; if (r) r(); };
+  const wait = ms => new Promise(r => { resolveWait = r; waitMs = ms; waitStart = Date.now(); if (paused) remain = ms; else timer = setTimeout(finish, ms); });
+  const ppBtn = document.getElementById("pp");
+  function pause(){
+    if (paused) return; paused = true; document.body.classList.add("is-paused"); ppBtn.textContent = "▶ Play";
+    if (timer){ clearTimeout(timer); timer = null; remain = Math.max(0, waitMs - (Date.now() - waitStart)); }
+    const w = getComputedStyle(prog).width; prog.style.transition = "none"; prog.style.width = w;
+    clearTimeout(autoResume);
+    if (CONFIG.PAUSE_RESUME_MINUTES > 0) autoResume = setTimeout(play, CONFIG.PAUSE_RESUME_MINUTES * 60e3);
+  }
+  function play(){
+    if (!paused) return; paused = false; document.body.classList.remove("is-paused"); ppBtn.textContent = "⏸ Pause"; clearTimeout(autoResume);
+    if (resolveWait){ waitStart = Date.now(); waitMs = remain; timer = setTimeout(finish, remain);
+      void prog.offsetWidth; prog.style.transition = `width ${remain / 1000}s linear`; prog.style.width = "100%"; }
+  }
+  const togglePause = () => paused ? play() : pause();
+  const goNext = () => { nav = "fwd"; finish(); };
+  const goBack = () => { if (hpos > 0){ nav = "back"; finish(); } };
+  document.getElementById("bk").onclick = goBack;
+  document.getElementById("nx").onclick = goNext;
+  ppBtn.onclick = togglePause;
   addEventListener("keydown", e => {
-    if (e.key === "ArrowRight") skip();
-    else if (e.key === "ArrowLeft" && slides.length){ idx = (idx - 2 + slides.length) % slides.length; skip(); }
+    if (e.key === "ArrowRight") goNext();
+    else if (e.key === "ArrowLeft") goBack();
+    else if (e.key === " " || e.key === "p" || e.key === "P"){ e.preventDefault(); togglePause(); }
     else if (e.key === "f" || e.key === "F") fullscreen();
     else if (e.key === "m" || e.key === "M") location.href = location.pathname;
   });
@@ -987,20 +1180,39 @@ async function runClub(club){
     stage.querySelectorAll(".notice").forEach(n => n.remove());
     const old = [...stage.querySelectorAll(".slide.on")];
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("on")));
-    old.forEach(o => { o.classList.remove("on"); setTimeout(() => o.remove(), 1000); });
+    old.forEach(o => { o.classList.remove("on"); setTimeout(() => { (o._blobs || []).forEach(u => URL.revokeObjectURL(u)); o.remove(); }, 1000); });
   };
   const progress = secs => {
     prog.style.transition = "none"; prog.style.width = "0"; void prog.offsetWidth;
+    if (paused){ return; }
     prog.style.transition = `width ${secs}s linear`; prog.style.width = "100%";
   };
+  const markDot = i => dots.querySelectorAll(".dot").forEach((d, j) => d.classList.toggle("on", j === i));
+
+  // ---- history (for Back) ----
+  let hist = [], hpos = -1;
 
   while (true){
+    // Back / forward through slides already shown
+    if (nav === "back" || (nav === "fwd" && hpos < hist.length - 1)){
+      hpos += nav === "back" ? -1 : 1; nav = null;
+      const h = hist[hpos];
+      let el;
+      try { el = await makeSlide(h.s, club, stage, h.page); }
+      catch (e){ warn("Couldn't re-show that slide: " + e.message); continue; }
+      show(el); markDot(h.i); progress(h.s.secs);
+      await wait(h.s.secs * 1000);
+      continue;
+    }
+    nav = null;
     if (idx + 1 >= slides.length){
       if (idx >= 0 && slides.length && CONFIG.SPLASH_EVERY > 0 && ++rotations % CONFIG.SPLASH_EVERY === 0){
         show(await makeSplash(stage));
         dots.querySelectorAll(".dot").forEach(d => d.classList.remove("on"));
         progress(CONFIG.SPLASH_SECONDS);
         await wait(CONFIG.SPLASH_SECONDS * 1000);
+        if (nav === "back"){ continue; }
+        nav = null;
       }
       idx = -1;
       if (!slides.length || Date.now() - lastLoad >= CONFIG.REFRESH_MINUTES * 60e3){
@@ -1021,9 +1233,12 @@ async function runClub(club){
       if (++fails >= slides.length){ stageNotice("Can't show any slides", e.message + " Retrying shortly…"); fails = 0; lastLoad = 0; idx = slides.length; await sleep(30e3); }
       continue;
     }
-    show(el);
-    dots.querySelectorAll(".dot").forEach((d, i) => d.classList.toggle("on", i === idx));
-    progress(s.secs);
+    hist = hist.slice(0, hpos + 1); hist.push({ s, page: el._page, i: idx });
+    if (hist.length > 60) hist.shift();
+    hpos = hist.length - 1;
+    show(el); markDot(idx); progress(s.secs);
+    const upcoming = slides[idx + 1] || slides[0];
+    if (upcoming) setTimeout(() => prefetchSlide(upcoming), 1500);
     await wait(s.secs * 1000);
   }
 }
