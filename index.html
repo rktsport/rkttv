@@ -74,8 +74,8 @@
     transition:transform .18s ease,box-shadow .18s ease}
   .card::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:rgb(var(--c2))}
   .card:hover,.card:focus-visible{transform:translateY(-4px);box-shadow:0 18px 40px rgba(0,0,0,.55),inset 0 0 0 2px rgba(255,255,255,.35);outline:none}
-  .card .logo{width:124px;height:124px;border-radius:50%;background:#fff;display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-  .card .logo img{max-width:78%;max-height:78%;object-fit:contain}
+  .card .logo{width:124px;height:124px;border-radius:50%;background:#fff;display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.35);overflow:hidden}
+  .card .logo img{width:68%;height:68%;object-fit:contain}
   .card .logo span{font:800 44px var(--cond);color:rgb(var(--c1d))}
   .card .name{font:700 26px/1 var(--cond);letter-spacing:.06em;text-transform:uppercase;text-align:center}
   .card .go{font-size:13px;color:rgba(255,255,255,.7);letter-spacing:.08em;text-transform:uppercase}
@@ -335,6 +335,26 @@
   .contact .who b{font-size:18px}
   .pv-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
   @media (max-width:860px){ .pr-hero,.contact{grid-template-columns:minmax(0,1fr)} .pr-grid3,.steps3,.pv-row{grid-template-columns:minmax(0,1fr)} .calc .tot{margin-left:0;text-align:left} .pr-cta.ghost{margin-left:0} }
+
+  /* TV app guide */
+  .ag{max-width:1000px;margin:0 auto;padding-top:24px}
+  .ag h2{font:800 clamp(30px,4vw,44px)/1 var(--cond);text-transform:uppercase}
+  .ag .lead{color:rgba(243,244,248,.82);font-size:16.5px;line-height:1.55;margin:12px 0 8px;max-width:800px}
+  .ag-sec{padding:26px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+  .ag-sec h3{font:800 26px/1 var(--cond);text-transform:uppercase;letter-spacing:.02em;margin-bottom:12px}
+  .ag-sec p,.ag-sec li{color:rgba(243,244,248,.82);font-size:15.5px;line-height:1.6}
+  .ag-sec ul,.ag-sec ol{margin:6px 0 0 20px}
+  .ag-sec li{margin:4px 0}
+  .ag-sec b{color:#fff}
+  .ag-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:6px}
+  .ag-box{padding:18px 20px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+  .ag-box h4{font:800 19px/1.1 var(--cond);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
+  .ag-box.yes{border-color:rgba(31,138,76,.6);background:rgba(31,138,76,.1)}
+  .ag-box.no{border-color:rgba(215,38,61,.5);background:rgba(215,38,61,.08)}
+  .ag-path{font:600 14px ui-monospace,Consolas,monospace;background:rgba(255,255,255,.08);padding:2px 7px;border-radius:5px;color:#fff;white-space:normal}
+  .ag-keys{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;align-items:center;margin-top:6px}
+  .ag-keys span:nth-child(odd){font:700 14px var(--cond);letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:6px;background:rgba(255,255,255,.1);text-align:center}
+  @media (max-width:760px){ .ag-two{grid-template-columns:minmax(0,1fr)} }
 
   /* Setup guide (club list page) */
   .guide{max-width:1200px;margin:0 auto;padding-top:24px}
@@ -1640,6 +1660,88 @@ function guideHTML(){
     </section>
   </div>`;
 }
+function appHTML(){
+  return `
+  <div class="ag">
+    <h2>RKT TV app</h2>
+    <p class="lead">The RKT TV app runs your club's screen full-screen on a TV, with no web browser needed. It's useful when your TV doesn't have a browser, or you'd rather it start up by itself. Your club's content still comes from your sheet, exactly as before. RKT Sport will send you the link to download the app.</p>
+
+    <section class="ag-sec">
+      <h3>Will it work on my TV?</h3>
+      <div class="ag-two">
+        <div class="ag-box yes"><h4>✓ Works on</h4><ul>
+          <li>Android TV and Google TV televisions (e.g. Sony, TCL, Hisense, Philips)</li>
+          <li>Chromecast with Google TV and Google TV Streamer</li>
+          <li>Amazon Fire TV sticks and Fire TV televisions</li>
+          <li>Android TV boxes, and Android phones and tablets</li></ul></div>
+        <div class="ag-box no"><h4>✕ Doesn't install on</h4><ul>
+          <li>Samsung TVs (Tizen)</li><li>LG TVs (webOS)</li><li>Apple TV, Roku</li></ul>
+          <p style="margin-top:8px">For these, plug in a <b>Google TV or Fire TV stick</b> (from about $50–$80) and install the app on that. Or use the TV's web browser if it has one.</p></div>
+      </div>
+    </section>
+
+    <section class="ag-sec">
+      <h3>1. Allow the app to be installed</h3>
+      <p>The app comes from RKT Sport rather than the app store, so the TV has to be allowed to install it. Menu names vary a little between brands.</p>
+      <div class="ag-two">
+        <div class="ag-box"><h4>Google TV / Android TV</h4><ol>
+          <li>Open <span class="ag-path">Settings → System → About</span> and press OK on <b>Android TV OS build</b> 7 times, until it says you're a developer.</li>
+          <li>Go to <span class="ag-path">Settings → Apps → Security &amp; restrictions → Unknown sources</span>.</li>
+          <li>Turn it on for the app you'll install with: <b>Downloader</b> or your <b>file manager</b> (step 2).</li></ol></div>
+        <div class="ag-box"><h4>Amazon Fire TV</h4><ol>
+          <li>Open <span class="ag-path">Settings → My Fire TV → About</span> and press OK on the device name 7 times, until it says you're a developer.</li>
+          <li>Go back to <span class="ag-path">My Fire TV → Developer options → Install unknown apps</span>.</li>
+          <li>Turn it on for <b>Downloader</b> (step 2).</li></ol></div>
+      </div>
+    </section>
+
+    <section class="ag-sec">
+      <h3>2. Get the app onto the TV</h3>
+      <div class="ag-two">
+        <div class="ag-box"><h4>Option A: Downloader (easiest)</h4><ol>
+          <li>On the TV, open the app store, search for <b>Downloader</b> (orange icon, by AFTVnews) and install it.</li>
+          <li>Open Downloader and type in the app link RKT Sport sent you.</li>
+          <li>It downloads the app and asks to install it: choose <b>Install</b>.</li></ol></div>
+        <div class="ag-box"><h4>Option B: USB stick</h4><ol>
+          <li>Download the app file (<b>RKT-TV.apk</b>) from the link on a computer and copy it to a USB stick.</li>
+          <li>Plug the USB stick into the TV or box.</li>
+          <li>Open a file manager on the TV (install a free one such as <b>File Commander</b> or <b>X-plore</b> if needed), find <b>RKT-TV.apk</b> and choose <b>Install</b>.</li></ol></div>
+      </div>
+    </section>
+
+    <section class="ag-sec">
+      <h3>3. Open it and pick your club</h3>
+      <ol>
+        <li>Open <b>RKT TV</b> from the TV's home screen or apps list.</li>
+        <li>Choose your club (or layout). From then on the app <b>goes straight to your club's screen</b> every time it opens.</li>
+        <li>Optional: on many TVs the app also opens by itself when the TV or box is switched on.</li>
+      </ol>
+    </section>
+
+    <section class="ag-sec">
+      <h3>Using the remote</h3>
+      <div class="ag-keys">
+        <span>← →</span><span>Previous / next slide</span>
+        <span>OK</span><span>Pause or play (carries on by itself after 5 minutes)</span>
+        <span>Menu</span><span>Back to the club list, to change club</span>
+        <span>Back ×2</span><span>Exit the app</span>
+      </div>
+    </section>
+
+    <section class="ag-sec">
+      <h3>Good to know</h3>
+      <ul>
+        <li><b>Updates are automatic.</b> Changes to your sheet appear within about 5 minutes. Improvements to RKT TV itself appear the next time the app is opened (or the TV is switched off and on).</li>
+        <li><b>Internet is needed.</b> If the connection drops, the screen says so and reconnects by itself.</li>
+        <li><b>The screen stays on</b> while the app is open, so the TV won't go to sleep.</li>
+        <li><b>Blank or white screen?</b> Update <b>Android System WebView</b> from the TV's app store, then reopen RKT TV.</li>
+        <li><b>New version of the app?</b> Install it the same way. It replaces the old one and keeps your club choice.</li>
+      </ul>
+      <p style="margin-top:12px">Stuck? Email <a href="mailto:${esc(CONFIG.RKT_EMAIL)}" style="color:rgb(230,200,130)">${esc(CONFIG.RKT_EMAIL)}</a>.</p>
+    </section>
+  </div>`;
+}
+
 function pricingHTML(){
   const mail = `mailto:${CONFIG.RKT_EMAIL}?subject=${encodeURIComponent("RKT TV for our club")}&body=${encodeURIComponent("Hi Patrick,\n\nWe're interested in RKT TV for our club.\n\nClub:\nNumber of screens / layouts:\nBest contact number:\n\nThanks,")}`;
   const feats = [
@@ -1790,11 +1892,13 @@ function renderMenu(clubs){
       <div class="info-row">
         <button class="info-card" data-open="guide"><span class="ic">📘</span><span><h4>Setup guide</h4><p>How to fill in your club's sheet, with examples of every slide type.</p></span><span class="arr">›</span></button>
         <button class="info-card" data-open="pricing"><span class="ic">💲</span><span><h4>Pricing</h4><p>Bring RKT TV to your club. From $100 per season.</p></span><span class="arr">›</span></button>
+        <button class="info-card" data-open="app"><span class="ic">📺</span><span><h4>TV app</h4><p>Install the RKT TV app on an Android TV, Google TV or Fire TV.</p></span><span class="arr">›</span></button>
       </div>
       <div class="menu-foot"><span>Powered by <strong>RKT Sport</strong>: automate your club screens</span><a href="mailto:${esc(CONFIG.RKT_EMAIL)}">${esc(CONFIG.RKT_EMAIL)}</a></div>
     </div>
     <div class="panel" id="panel-guide" role="dialog" aria-label="Setup guide"><div class="backdrop"></div><div class="panel-top"><span class="t">Setup guide</span><button class="btn x" data-close>✕ Close</button></div><div class="panel-body">${guideHTML()}</div></div>
-    <div class="panel" id="panel-pricing" role="dialog" aria-label="Pricing"><div class="backdrop"></div><div class="panel-top"><span class="t">Pricing</span><button class="btn x" data-close>✕ Close</button></div><div class="panel-body">${pricingHTML()}</div></div>`;
+    <div class="panel" id="panel-pricing" role="dialog" aria-label="Pricing"><div class="backdrop"></div><div class="panel-top"><span class="t">Pricing</span><button class="btn x" data-close>✕ Close</button></div><div class="panel-body">${pricingHTML()}</div></div>
+    <div class="panel" id="panel-app" role="dialog" aria-label="TV app"><div class="backdrop"></div><div class="panel-top"><span class="t">TV app</span><button class="btn x" data-close>✕ Close</button></div><div class="panel-body">${appHTML()}</div></div>`;
 }
 
 // Open / close the Setup guide and Pricing panels (also via #guide / #pricing in the address)
@@ -1821,8 +1925,8 @@ function setupPanels(first){
       out.textContent = n; out.value = n; document.getElementById("pr-t").textContent = "$" + (100 + 50 * (n - 1)); }
   });
   addEventListener("keydown", e => { if (e.key === "Escape") close(); });
-  addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h === "guide" || h === "pricing") open(h); });
-  const h = location.hash.slice(1); if (h === "guide" || h === "pricing") open(h);
+  addEventListener("hashchange", () => { const h = location.hash.slice(1); if (["guide", "pricing", "app"].includes(h)) open(h); });
+  const h = location.hash.slice(1); if (["guide", "pricing", "app"].includes(h)) open(h);
 }
 
 async function runClub(club){
