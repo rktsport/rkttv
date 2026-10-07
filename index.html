@@ -138,6 +138,10 @@
   .l-meta{margin-left:auto;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:.5rem}
   .chip{font:700 1.5rem/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;padding:.6rem 1.2rem;border-radius:99rem;background:rgb(var(--c2));color:rgb(var(--onc2))}
   .l-upd{font-size:1.05rem;color:var(--muted)}
+  .st-table{align-self:center;width:calc(var(--fs) * var(--tw));max-width:100%}
+  .st-table .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:.4em}
+  .st-table .l-row .team span{font-weight:600}
+  .st-table .l-row:not(.th){flex:0 0 auto;height:calc(var(--fs)*2.3)}
   .l-table{--fs:24px;flex:1;min-height:0;display:flex;flex-direction:column;gap:.28em;font-size:var(--fs)}
   .l-row{display:grid;grid-template-columns:var(--cols);align-items:center;flex:1;min-height:0;padding:0 .9em;border-radius:.35em;background:rgba(255,255,255,.05)}
   .l-row.alt{background:rgba(255,255,255,.085)}
@@ -576,6 +580,35 @@ async function sheetFetch(id, extra = ""){
 }
 // tab: { gid } or { sheet: "Tab name" } to read a tab other than the first. A gid in the link is used automatically.
 async function readSheet(idOrUrl, tab = {}){
+  const data = await sheetData(idOrUrl, tab);
+  const cols = data.table.cols.map(c => String(c.label || "").trim().toLowerCase());
+  return data.table.rows.map(r => {
+    const o = {};
+    cols.forEach((k, i) => { const c = r.c && r.c[i]; o[k] = c == null ? "" : (c.v ?? c.f ?? ""); });
+    return o;
+  });
+}
+// Headings as typed (trimmed) and each cell as displayed in the sheet (e.g. "10,280")
+async function readSheetTable(idOrUrl, tab = {}){
+  // Prefer the Sheets API: it returns every cell exactly as shown (e.g. "142*"), whatever the column's type
+  if (CONFIG.GOOGLE_API_KEY && tab.sheet){
+    try {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetIdOf(idOrUrl))}/values/${encodeURIComponent("'" + tab.sheet.replace(/'/g, "''") + "'")}?key=${CONFIG.GOOGLE_API_KEY}`;
+      const res = await fetch(url, { cache: "no-store", credentials: "omit" });
+      const j = await res.json();
+      if (!res.ok || j.error) throw new Error(j.error?.message || "HTTP " + res.status);
+      const vals = j.values || [];
+      const heads = (vals[0] || []).map(h => String(h).trim());
+      return { heads, rows: vals.slice(1).map(r => heads.map((_, i) => String(r[i] ?? "").trim())) };
+    } catch (e){ console.warn("[RKT TV] Sheets API read failed, using fallback:", e.message); }
+  }
+  const data = await sheetData(idOrUrl, tab);
+  return {
+    heads: data.table.cols.map(c => String(c.label || "").trim()),
+    rows: data.table.rows.map(r => data.table.cols.map((_, i) => { const c = r.c && r.c[i]; return c == null ? "" : String(c.f ?? c.v ?? "").trim(); }))
+  };
+}
+async function sheetData(idOrUrl, tab = {}){
   const id = sheetIdOf(idOrUrl);
   const gid = tab.gid ?? (String(idOrUrl).match(/[#?&]gid=(\d+)/) || [])[1];
   const extra = tab.sheet ? `&sheet=${encodeURIComponent(tab.sheet)}` : gid != null ? `&gid=${gid}` : "";
@@ -586,12 +619,7 @@ async function readSheet(idOrUrl, tab = {}){
     catch (e2) { throw new Error(`Couldn't open sheet ${id}. Check it's shared as "Anyone with the link: Viewer" and that this device can reach docs.google.com.`); }
   }
   if (data.status === "error") throw new Error((data.errors?.[0]?.detailed_message || data.errors?.[0]?.message || "Sheet error") + ` (${id})`);
-  const cols = data.table.cols.map(c => String(c.label || "").trim().toLowerCase());
-  return data.table.rows.map(r => {
-    const o = {};
-    cols.forEach((k, i) => { const c = r.c && r.c[i]; o[k] = c == null ? "" : (c.v ?? c.f ?? ""); });
-    return o;
-  });
+  return data;
 }
 
 /* ---------- Google Drive (only used for Filename lookups) ---------- */
@@ -684,6 +712,10 @@ async function buildSlides(club){
         if (!files.length) throw new Error("no images found in the folder");
         slides.push({ kind: "gallery", key: "g|" + link, files, per, secs });
       } catch (e){ warn(`Gallery: ${e.message}`); }
+    } else if (type === "stats" || type === "stat" || type === "statistics"){
+      const ttl = String(r.details || "").trim() || fname;
+      try { slides.push(await statsSlide(club, link, ttl, secs)); }
+      catch (e){ warn(`Stats "${ttl || link}": ${e.message}`); }
     } else if (/^hono(u)?r|^lifemember|^awards?$/.test(type)){
       try { slides.push(...await honoursSlides(club, link, fname, secs)); }
       catch (e){ warn(`Honours "${fname || link}": ${e.message}`); }
@@ -881,6 +913,70 @@ const imgAlt = v => { if (!v) return ""; const d = driveFileIdOf(v); return d ? 
 function splitDetails(t){
   return String(t || "").split(/\r?\n|\s+\|\s+|;\s*|,\s*(?=[A-Z][^,:]{1,40}:)/).map(x => x.trim()).filter(Boolean);
 }
+/* ---------- stats ---------- */
+// Stats tab: Order + Name required; every other column is shown. Rows sorted by Order; the top rows that fit are shown.
+const STATS_MAX_ROWS = 12;
+async function statsSlide(club, link, title, secs){
+  let t, tabName = "";
+  if (/^https?:\/\//i.test(link) || /\/d\/[\w-]{20,}/.test(link)) t = await readSheetTable(link);
+  else { tabName = link || title; if (!tabName) throw new Error("put the tab name in Link"); t = await readSheetTable(club.sheet, { sheet: tabName }); }
+  const low = t.heads.map(h => h.toLowerCase());
+  const oi = low.indexOf("order"), ni = low.indexOf("name");
+  if (ni < 0) throw new Error("the tab needs a Name column");
+  const show = t.heads.map((h, i) => i).filter(i => i !== oi && t.heads[i] !== "");
+  let prev = 0;
+  const rows = t.rows.map((r, idx) => {
+    const raw = oi >= 0 ? parseFloat(String(r[oi]).replace(/,/g, "")) : NaN;
+    const ord = isFinite(raw) ? raw : prev;     // no Order: stays where it is in the sheet
+    prev = ord;
+    return { ord, idx, cells: show.map(i => r[i]) };
+  }).filter(r => String(t.rows[r.idx][ni]).trim() !== "");
+  if (!rows.length) throw new Error("no rows with a Name");
+  rows.sort((a, b) => a.ord - b.ord || a.idx - b.idx);
+  const heads = show.map(i => t.heads[i]);
+  const nameCol = show.indexOf(ni);
+  // Decide each column's look from every value in it: numbers (incl. 142* not-outs, 45%, 1,234) are centred, anything else is text
+  const numeric = heads.map((_, c) => c !== nameCol && rows.some(r => r.cells[c] !== "") && rows.every(r => r.cells[c] === "" || /^[-+]?[\d,.]+[*%]?$/.test(r.cells[c])));
+  return { kind: "stats", title: title || tabName || "Stats", heads, nameCol, numeric, rows: rows.slice(0, STATS_MAX_ROWS).map(r => r.cells), total: rows.length, secs };
+}
+function statsHTML(s, club){
+  // Column widths (in units of the table's font size) sized to their contents, so the table is only as wide as it needs to be
+  const longest = c => Math.max(String(s.heads[c]).length * 0.9, ...s.rows.map(r => String(r[c]).length));
+  const w = s.heads.map((h, c) => c === s.nameCol
+    ? Math.max(9, Math.min(22, longest(c) * 0.62 + 2))
+    : Math.max(3.6, Math.min(16, longest(c) * 0.6 + 2)));
+  const total = w.reduce((a, b) => a + b, 0) + 2.4;
+  const cols = w.map(x => `calc(var(--fs)*${x.toFixed(2)})`).join(" ");
+  const cell = (v, c, head) => {
+    const cls = c === s.nameCol ? "team" : (s.numeric[c] || v.length <= 8 ? "num" : "txt");
+    const big = !head && c === s.nameCol + 1 && s.numeric[c] ? " pts" : "";
+    return `<div class="${cls}${big}">${c === s.nameCol && !head ? `<span>${esc(v)}</span>` : esc(v)}</div>`;
+  };
+  const colCls = c => c === s.nameCol || s.numeric[c] || s.rows.every(r => String(r[c]).length <= 8) ? "" : "txt";
+  const cellC = (v, c, head) => colCls(c) === "txt" ? `<div class="txt">${esc(v)}</div>` : cell(v, c, head);
+  return {
+    total, k: s.heads.length,
+    html: `
+    <div class="l-head">
+      ${club.logo ? `<img class="org" src="${esc(club.logo)}" data-alt="${esc(club.logoAlt || "")}" alt="" onerror="this.remove()">` : ""}
+      <div><div class="l-kicker">${esc(club.name)} · Club stats</div><div class="l-title">${esc(s.title)}</div></div>
+      ${s.total > s.rows.length ? `<div class="l-meta"><div class="chip">Top ${s.rows.length}</div></div>` : ""}
+    </div>
+    <div class="l-table st-table" style="--cols:${cols};--tw:${total.toFixed(2)}">
+      <div class="l-row th">${s.heads.map((h, c) => cellC(h, c, true)).join("")}</div>
+      ${s.rows.map((r, i) => `<div class="l-row ${i % 2 ? "alt" : ""} ${i === 0 ? "me" : ""}">${r.map((v, c) => cellC(v, c, false)).join("")}</div>`).join("")}
+    </div>`
+  };
+}
+function fitStats(el, n, total){
+  const tbl = el.querySelector(".l-table");
+  const availW = el.querySelector(".l-head").clientWidth;
+  const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const byH = tbl.clientHeight / (Math.max(n, 8) * 2.58 + 1.2);   // short lists keep normal-sized rows
+  const byW = availW / total;
+  tbl.style.setProperty("--fs", Math.max(10, Math.min(byH, byW, root * 2.6)) + "px");
+}
+
 async function honoursSlides(club, link, title, secs){
   let rows, tabName = "";
   if (/^https?:\/\//i.test(link) || /\/d\/[\w-]{20,}/.test(link)) rows = await readSheet(link);
@@ -1095,6 +1191,10 @@ async function makeSlide(s, club, stage, page){
     const entry = await getLadder(s.url);
     const L = ladderHTML(entry, s, club);
     el.innerHTML = L.html; stage.appendChild(el); fitLadder(el, L.n, L.k);
+  } else if (s.kind === "stats"){
+    el.className = "slide ladder stats";
+    const S = statsHTML(s, club);
+    el.innerHTML = S.html; stage.appendChild(el); fitStats(el, s.rows.length, S.total);
   } else if (s.kind === "honours"){
     const n = nextPage(); el._page = n;
     const pg = s.pageList[n % s.pageList.length];
@@ -1574,6 +1674,10 @@ const GUIDE_TYPES = [
   { id: "youtube", type: "YouTube", blurb: "A YouTube video, full screen. Plays muted (browsers only auto-play muted video). Ads may appear on monetised videos.",
     fields: { Link: "Any YouTube link: watch, youtu.be, Shorts. A start time like <i>&t=90</i> is used.", Length: "Seconds to play. Blank = the whole video (up to 10 minutes).", Details: "Type <i>sound</i> to try playing with sound (TVs usually need a click on the page first)." },
     row: ["YouTube", "https://www.youtube.com/watch?v=eotz67vqAiQ", "", "", ""] },
+  { id: "stats", type: "Stats", blurb: "A club stats table (most games, runs, wickets…) from a tab in your sheet. Rows are shown in Order, and if there are more than fit on screen, the top ones are shown. The leader is highlighted.",
+    fields: { Link: "The name of a tab in your sheet (e.g. <i>Runs</i>).", Details: "The title shown on screen (e.g. <i>Most Club Runs</i>). Blank = the tab name.", Length: "Seconds on screen.",
+      "The tab": "<b>Order</b> (1 = top) and <b>Name</b> are required. Every other column is shown as a column in the table, with its heading as typed (e.g. <i>Runs</i>, <i>HS</i>, <i>Avg</i>)." },
+    row: ["Stats", "Runs", "", 10, "Most Club Runs"], row2: { head: ["Order", "Name", "Runs", "HS"], rows: [[1, "Chris Ryan", "10,280", 134], [2, "Paul McGaw", "10,133", ""], [3, "Glenn Beckett", "7,365", ""]] } },
   { id: "livescore", type: "Live Score", blurb: "A full-screen live scoreboard for a grade. The club's game is on top in detail (score, batters, bowlers, partnership, target, last 20 balls); other live games in the grade are tiles below. Updates every 20 seconds. Skipped when nothing is live.",
     fields: { Link: "The grade ID (or any link containing it).", Length: "Seconds on screen. Use a long time (e.g. 120) if it's the main thing on a scoreboard." },
     row: ["Live Score", "2ac3302e-ade0-4e77-9e5b-d2a194a47035", "", 60, ""] }
@@ -1837,6 +1941,9 @@ function drawGuidePreviews(first, root = document){
     image: st => { const src = photo("#7fb3e0", "#d8ecff", "Presentation Night · Sat 14 March"); st.innerHTML = slide("image", `<div class="blur" style="background-image:url('${src}')"></div><img class="main" src="${src}" alt="">`); },
     gallery: st => { const cs = [["#f4b183", "#ffe5cc"], ["#9fd3c7", "#e6fff9"], ["#c3b1e1", "#f1eaff"], ["#f7d774", "#fff6d5"]];
       st.innerHTML = slide("gallery", `<div class="g-grid" style="--cols:2;--rows:2;height:100%">${cs.map((c, i) => { const u = photo(c[0], c[1], "Photo " + (i + 1)); return `<div class="g-tile"><div class="blur" style="background-image:url('${u}')"></div><img src="${u}" alt=""></div>`; }).join("")}</div>`); },
+    stats: st => { const ss = { title: "Most Club Runs", heads: ["Name", "Runs", "HS"], nameCol: 0, numeric: [false, true, true], total: 10,
+        rows: [["Chris Ryan", "10,280", "134"], ["Paul McGaw", "10,133", "112"], ["Glenn Beckett", "7,365", "151"], ["Gavan McGaw", "7,267", "228"], ["Mark Casey", "7,266", "116"], ["Andrew McGaw", "6,904", "142"], ["Daniel Bourne", "6,512", "120"], ["Steve Cruwys", "5,980", "131"]] };
+      const S = statsHTML(ss, demo); st.innerHTML = `<div class="slide ladder stats on">${S.html}</div>`; fitStats(st.firstElementChild, ss.rows.length, S.total); },
     honours: st => { const names = [["Noel McGaw", 1986], ["Jack Hickey", 1986], ["Joyce McGaw", 1986], ["John Smith", 1987], ["Phil Taranto", 1987], ["Paul McGaw", 1987], ["Ansel Arcuri", 1988], ["John McAlroy", 1988], ["Chris 'Dizzy' Smith", 1989], ["Marty Wylie", 1989], ["Danny Maher", 1991], ["Gavan McGaw", 1993], ["Andy Ryan", 1995], ["Peter Ryan", 1996], ["Barry Edwards", 1996], ["Janet Edwards", 1996], ["Chris Ryan", 1999], ["Steve Freeman", 2000], ["Steve Cruwys", 2001], ["Andrew McGaw", 2002], ["Tim Aldridge", 2002]];
       st.innerHTML = slide("honours", honoursHTML({ title: "Life Members", layout: "board", thumbs: false, cols: 3, rows: 7, entries: names.map((n, i) => ({ no: i + 1, name: n[0], year: n[1] })), page: 1, pages: 3 }, demo));
       fitHonours(st.firstElementChild); },
