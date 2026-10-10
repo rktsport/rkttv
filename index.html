@@ -213,9 +213,36 @@
   .g-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
   /* Live Score scoreboard (sizes in em so the whole board can scale to fit) */
   .livescore{--k:1;--e:calc(1rem * var(--k));font-size:var(--e);padding:1.4em 2em 1.2em;display:flex;flex-direction:column;gap:1.1em}
-  .lb-top{flex:0 0 auto;display:flex;flex-direction:column;gap:1em;padding:1.3em 1.8em;border-radius:1.1em;
+  .lb-top{flex:0 0 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:space-evenly;gap:1em;padding:1.3em 1.8em;border-radius:1.1em;
     background:linear-gradient(180deg,rgba(var(--c1d),.95),rgba(0,0,0,.45));border-top:.4em solid rgb(var(--c2));box-shadow:0 1em 2.5em rgba(0,0,0,.45)}
-  .livescore.solo .lb-top{flex:1;justify-content:space-evenly}
+  .lb-top > *{flex-shrink:0}                       /* never squash a row; the text shrinks instead */
+  .livescore.solo .lb-top{flex:1}
+  .livescore.has-others .lb-top{flex:0 0 75%}      /* main match gets ~75% of the height when other games are shown */
+  /* Tall (portrait) screens: stack things that sit side by side on a wide screen */
+  .livescore.tall .lb-grid{grid-template-columns:minmax(0,1fr)}
+  .livescore.tall .lb-main{flex-wrap:wrap;row-gap:.8em}
+  .livescore.tall .lb-opp{margin-left:0;flex:1 1 100%;flex-direction:row;flex-wrap:wrap;align-items:baseline;justify-content:space-between;text-align:left;gap:.4em 1.2em}
+  .livescore.tall .lb-balls{flex-wrap:wrap;overflow:visible;row-gap:.5em}
+  /* Live stream / highlight clip panel (sized in fitBoard) */
+  .lb-media{display:none}
+  .livescore.with-media{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:1.1em 1.4em}
+  .livescore.with-media .lb-media{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7em;grid-column:1;grid-row:1;min-width:0;min-height:0;animation:mIn .5s ease}
+  .livescore.with-media .lb-top{grid-column:2;grid-row:1 / span 2;min-height:0}
+  .livescore.with-media .lb-others{grid-column:1;grid-row:2;min-height:0}
+  .livescore.with-media.solo .lb-media,.livescore.with-media.solo .lb-top{grid-row:1}
+  .livescore.with-media.m-tall{grid-template-columns:minmax(0,1fr)}
+  .livescore.with-media.m-tall .lb-media{grid-row:1}
+  .livescore.with-media.m-tall .lb-top{grid-column:1;grid-row:2}
+  .livescore.with-media.m-tall .lb-others{grid-column:1;grid-row:3}
+  .lb-mframe{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:.9em;overflow:hidden;box-shadow:0 1em 2.5em rgba(0,0,0,.5);border-top:.4em solid rgb(var(--c2))}
+  .lb-mframe video,.lb-yt,.lb-yt .yt-box,.lb-mframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .lb-mframe video{object-fit:contain;background:#000}
+  .lb-mcap{display:flex;align-items:center;gap:.8em;max-width:100%;font:600 1.5em/1.15 "Barlow",sans-serif;color:#fff;white-space:nowrap;overflow:hidden}
+  .lb-mcap > span:last-child{overflow:hidden;text-overflow:ellipsis}
+  .lb-mcap i{font-style:normal;color:var(--muted)}
+  .lb-mcap .tk-badge{font-size:1em;flex:0 0 auto}
+  .tk-badge.hl{background:#3a3f4b;color:#fff}.tk-badge.hl.four{background:#1e6fd9}.tk-badge.hl.six{background:#7b2fc9}.tk-badge.hl.w{background:#d7263d}
+  @keyframes mIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
   .lb-head{display:flex;align-items:center;gap:1em;font:600 1.35em/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--accent))}
   .lb-head .tk-badge{font-size:1em}
   .lb-head .sp{margin-left:auto;color:var(--muted)}
@@ -254,6 +281,7 @@
   .lb-others{flex:1;min-height:0;display:grid;gap:1em;grid-template-columns:repeat(var(--cols),minmax(0,1fr));grid-template-rows:repeat(var(--rows),minmax(0,1fr))}
   .lb-bar{display:flex;align-items:center;gap:1em;font:600 1.35em/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--accent))}
   .lb-tile{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:.45em;padding:.9em 1.2em;border-radius:.9em;background:rgba(255,255,255,.06);border-left:.3em solid rgba(var(--c2),.85)}
+  .lb-tile > *{flex-shrink:0}
   .lb-trow{display:flex;align-items:center;gap:.6em;font:600 1.6em/1.1 "Barlow",sans-serif;color:rgba(255,255,255,.75);min-width:0}
   .lb-trow.bat{color:#fff}
   .lb-trow img{width:1.5em;height:1.5em;border-radius:50%;background:#fff;object-fit:contain;flex:0 0 auto}
@@ -458,6 +486,7 @@ const CONFIG = {
   GOOGLE_API_KEY: "AIzaSyC-i38xOyYQItTkBf7XbgQBQM0xVolgCCQ",
   DEFAULT_SECONDS: 10,     // used when Length is blank
   YOUTUBE_MAX_MINUTES: 10, // longest a YouTube slide plays when Length is blank
+  HLS_PLAYER: "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js", // plays Live Score highlight clips on browsers without built-in support
   LIVESCORE_RECENT_BALLS: 20, // recent balls shown on the Live Score board
   GALLERY_MAX: 24,         // most images a Gallery slide will show at once
   IMAGE_STORE_MB: 400,     // images kept on this device between visits (least-recently-shown are dropped first).
@@ -699,7 +728,10 @@ async function buildSlides(club){
     } else if (type === "livescore" || type === "livescores" || type === "scoreboard"){
       const g = (link.match(GUID) || [])[0];
       if (!g) { warn(`Live Score: "${link}" doesn't contain a grade ID — skipped.`); continue; }
-      slides.push({ kind: "livescore", grade: g.toLowerCase(), secs });
+      const det = String(r.details || "").trim().toLowerCase();
+      const mode = /stream|video|camera/.test(det) ? "stream" : /highlight|replay|clip/.test(det) ? "highlights" : "";
+      if (det && !mode) warn(`Live Score: Details "${r.details}" not recognised (use Stream or Highlights) — showing the plain scoreboard.`);
+      slides.push({ kind: "livescore", grade: g.toLowerCase(), secs, mode, streamNo: parseInt((det.match(/\d+/) || [])[0], 10) || 0 });
     } else if (type === "youtube" || type === "video"){
       const v = youtubeInfo(link);
       if (!v) { warn(`YouTube: "${link}" isn't a YouTube link — skipped.`); continue; }
@@ -774,7 +806,7 @@ function makeYouTube(s, el){
           if (e.data === 1){ if (!el._secs){ const d = e.target.getDuration(); if (d) el._secs = s.secs || Math.min(d - (s.start || 0), CONFIG.YOUTUBE_MAX_MINUTES * 60); } finishOk(); }
           if (e.data === 0 && el._onEnd) el._onEnd();       // video finished
         },
-        onError: e => { const m = "YouTube: " + (YT_ERR[e.data] || "error " + e.data); if (done){ if (el._onEnd) el._onEnd(); warn(m); } else finishBad(m); }
+        onError: e => { const m = "YouTube: " + (YT_ERR[e.data] || "error " + e.data) + (location.protocol === "file:" ? " (YouTube won't play on a page opened as a file; use the web address)" : ""); if (done){ if (el._onEnd) el._onEnd(); warn(m); } else finishBad(m); }
       }
     });
     el._player = player;
@@ -1570,21 +1602,261 @@ function boardHTML(d, club){
     for (let c = 1; c <= Math.max(1, n); c++){ const r = Math.ceil(n / c), w = 100 / c, h = 45 / r, sz = Math.min(w, h * 2.2); if (sz > best){ best = sz; rows = r; cols = c; } }
   }
   const head = !d.featured ? `<div class="lb-bar"><span class="tk-badge live">Live</span><span>${esc([d.gradeName && titleCase(d.gradeName), d.others[0]?.m.round?.name].filter(Boolean).join(" · "))}</span></div>` : "";
-  return { solo, html: `${head}${d.featured ? boardTop(d, club) : ""}${n ? `<div class="lb-others" style="--cols:${cols};--rows:${rows}">${d.others.map(boardTile).join("")}</div>` : ""}` };
+  return { solo, html: `${head}${d.featured ? boardTop(d, club) : ""}${n ? `<div class="lb-others" style="--cols:1;--rows:1">${d.others.map(boardTile).join("")}</div>` : ""}` };
 }
+// Size the scoreboard to whatever screen it's on: the main match fills its share of the height,
+// the other games' tiles are arranged to suit the space left, and text grows or shrinks to fit each.
 function fitBoard(el){
-  let k = el.querySelector(".lb-top") ? 1.15 : 2.2; el.style.setProperty("--k", k);
-  const outside = box => { const r = box.getBoundingClientRect(); return [...box.children].some(c => { const q = c.getBoundingClientRect(); return q.top < r.top - 1 || q.bottom > r.bottom + 1; }); };
-  const clipped = sel => [...el.querySelectorAll(sel)].some(n => n.scrollWidth > n.clientWidth + 1);
-  const over = () => el.scrollHeight > el.clientHeight + 1 || outside(el) || [...el.querySelectorAll(".lb-tile")].some(outside)
-    || clipped(".lb-trow") || clipped(".lb-trow .nm") || clipped(".lb-pl") || clipped(".lb-tbl .r span:first-child");
-  while (k > 0.5 && over()){ k -= 0.03; el.style.setProperty("--k", k); }
+  el.style.setProperty("--k", 1);
+  const top = el.querySelector(".lb-top"), others = el.querySelector(".lb-others");
+  const media = el.classList.contains("with-media") ? el.querySelector(".lb-media") : null;
+  let tall = el.clientHeight > el.clientWidth * 0.85;
+  if (media){
+    // Video panel: on a tall screen it sits across the top; otherwise on the left with the main match beside it.
+    const cs = getComputedStyle(el), W = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      H = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+      gx = parseFloat(cs.columnGap) || 0, gy = parseFloat(cs.rowGap) || 0, frame = media.querySelector(".lb-mframe");
+    el.classList.toggle("m-tall", tall);
+    const cap = media.querySelector(".lb-mcap").offsetHeight + gy;
+    let fw, fh;
+    if (tall){
+      fh = Math.min(W * 9 / 16, H * (others || top ? 0.42 : 1) - cap); fw = fh * 16 / 9;
+      el.style.gridTemplateColumns = "";
+      el.style.gridTemplateRows = `${Math.round(fh + cap)}px` + (top ? ` minmax(0,${others ? 3 : 1}fr)` : "") + (others ? " minmax(0,1fr)" : "");
+    } else {
+      const cw = Math.round((W - gx) * (top ? 0.58 : 0.62));
+      fh = Math.min(cw * 9 / 16, (others && top ? H * 0.66 : H) - cap); fw = fh * 16 / 9;
+      if (!top){ el.style.gridTemplateColumns = `${cw}px minmax(0,1fr)`; el.style.gridTemplateRows = "minmax(0,1fr)"; }
+      else { el.style.gridTemplateColumns = `${cw}px minmax(0,1fr)`; el.style.gridTemplateRows = others ? `${Math.round(fh + cap)}px minmax(0,1fr)` : "minmax(0,1fr)"; }
+    }
+    frame.style.width = Math.max(0, fw) + "px"; frame.style.height = Math.max(0, fh) + "px";
+    if (top && !tall) tall = top.clientHeight > top.clientWidth * 0.85;   // the main match's own space is tall here
+  }
+  el.classList.toggle("tall", tall);
+  el.classList.toggle("has-others", !!(top && others));
+  const setF = (box, px) => { box.style.fontSize = px + "px"; box.style.setProperty("--e", px + "px"); };
+  const clipped = (box, sel) => [...box.querySelectorAll(sel)].some(n => n.scrollWidth > n.clientWidth);
+  const search = (box, ok, hi) => {           // largest text size that still fits
+    let lo = 4;
+    for (let i = 0; i < 16; i++){ const mid = (lo + hi) / 2; setF(box, mid); if (ok()) lo = mid; else hi = mid; }
+    setF(box, lo * 0.96);                     // small margin so text never ends up just clipped
+  };
+  if (top) search(top, () => top.scrollHeight <= top.clientHeight + 1 && top.scrollWidth <= top.clientWidth + 1
+    && !clipped(top, ".lb-main, .lb-head, .lb-tbl .r span:first-child"), Math.max(8, top.clientWidth / 22));
+  if (others){
+    const n = others.children.length, W = others.clientWidth, H = others.clientHeight;
+    let best = 0, cols = 1, rows = n;
+    for (let c = 1; c <= n; c++){ const r = Math.ceil(n / c), sz = Math.min(W / c, (H / r) * 2.6); if (sz > best){ best = sz; cols = c; rows = r; } }
+    others.style.setProperty("--cols", cols); others.style.setProperty("--rows", rows);
+    search(others, () => [...others.children].every(t => t.scrollHeight <= t.clientHeight + 1)
+      && !clipped(others, ".lb-trow, .lb-trow .nm, .lb-pl"), Math.max(8, Math.min(W / cols, H / rows) / 5));
+  }
 }
 async function renderBoard(el, s, club){
   const d = await liveBoardData(s.grade, club);
   const b = boardHTML(d, club);
   el.classList.toggle("solo", b.solo);
-  el.innerHTML = b.html; fitBoard(el);
+  // Re-draw the scores but keep any video that's playing
+  [...el.children].forEach(c => { if (!c.classList.contains("lb-media")) c.remove(); });
+  el.insertAdjacentHTML("beforeend", b.html);
+  if (s.mode && el.isConnected) liveMedia(el, s, d);
+  fitBoard(el);
+}
+
+/* ---------- Live Score: live stream and highlight clips (Details = Stream / Highlights) ---------- */
+const hlSeen = new Map();        // match id -> highlight ids already played on this screen
+const HL_RECENT_MINUTES = 15;    // highlights older than this aren't played
+const HL_MAX_QUEUE = 3;          // when several are waiting, play only the latest few
+function matchHighlights(fBalls){
+  const out = [];
+  for (const inn of fBalls?.innings || []) for (const b of inn.balls || []){
+    const h = b.highlight; if (!h || !h.highlightUrl) continue;
+    out.push({ id: h.id || b.id, url: h.highlightUrl, type: String(h.highLightType || h.highlightType || "Highlight"), text: h.description || b.description || "",
+      t: Date.parse(b.ballTime) || 0, over: b.overNumber != null ? `${b.overNumber}.${b.ballNumber ?? b.ballDisplayNumber ?? ""}` : "" });
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+function pickStream(card, which, hl){
+  const list = (card?.matchStreams || []).map((s, i) => ({ s, i, v: youtubeInfo(s.streamUrl), hls: /^https:\/\/.+\.m3u8/i.test(s.vendorStreamURL || "") ? s.vendorStreamURL : "" }))
+    .filter(x => x.v || x.hls)
+    .sort((a, b) => (a.s.streamOrderNumber ?? 99) - (b.s.streamOrderNumber ?? 99) || a.i - b.i);
+  if (!list.length) return null;
+  let pick;
+  if (which) pick = list[which - 1] || list[0];
+  else {   // several cameras: prefer the one the highlights are cut from (the main camera)
+    const dir = (hl[0]?.url.match(/frogbox\.tv\/([^/?#]+)\//) || [])[1];
+    pick = (dir && list.find(x => String(x.s.vendorStreamURL || "").includes(dir))) || list[0];
+  }
+  return { vid: pick.v ? pick.v.vid : "", hls: pick.hls, key: (pick.v ? pick.v.vid : "") + "|" + pick.hls };
+}
+// Plays a live HLS stream muted; resolves once it's playing. video._hls is kept so it can be stopped.
+function playLive(video, url){
+  return new Promise((ok, fail) => {
+    let started = false;
+    const to = setTimeout(() => bad(new Error("stream didn't start")), 20000);
+    const bad = e => { clearTimeout(to); if (!started) fail(e); else if (video._onDrop) video._onDrop(e); };
+    video.muted = true; video.playsInline = true; video.autoplay = true; video._live = true;
+    video.onplaying = () => { if (!started){ started = true; clearTimeout(to); ok(); } };
+    video.onerror = () => bad(new Error("stream couldn't be played"));
+    if (video.canPlayType("application/vnd.apple.mpegurl")) { video.src = url; video.play().catch(() => {}); return; }
+    loadHlsJs().then(Hls => {
+      if (!Hls.isSupported()) return bad(new Error("this screen's browser can't play the stream"));
+      const hls = new Hls({ liveSyncDurationCount: 3, maxBufferLength: 30 }); video._hls = hls;
+      hls.on(Hls.Events.ERROR, (ev, data) => {
+        if (!data || !data.fatal) return;
+        if (data.type === "mediaError"){ try { hls.recoverMediaError(); return; } catch (e){} }
+        bad(new Error("stream couldn't be loaded (" + (data.details || data.type) + ")"));
+      });
+      hls.loadSource(url); hls.attachMedia(video);
+      video.play().catch(() => {});
+    }).catch(bad);
+  });
+}
+let hlsLib = null;
+function loadHlsJs(){
+  if (window.Hls) return Promise.resolve(window.Hls);
+  return hlsLib || (hlsLib = new Promise((ok, fail) => {
+    const sc = document.createElement("script"); sc.src = CONFIG.HLS_PLAYER;
+    sc.onload = () => window.Hls ? ok(window.Hls) : fail(new Error("video player didn't load"));
+    sc.onerror = () => { hlsLib = null; fail(new Error("video player couldn't be downloaded")); };
+    document.head.appendChild(sc);
+  }));
+}
+// Plays one highlight clip (an HLS .m3u8 link) muted; resolves when it ends. video._stopClip() ends it early.
+function playClip(video, url){
+  return new Promise((ok, fail) => {
+    const num = k => { const m = url.match(new RegExp(`[?&]${k}=(\\d+(?:\\.\\d+)?)`)); return m ? +m[1] : null; };
+    const a = num("start") || 0, z = num("end");
+    let hls = null, over = false, endAt = null, lastT = -1, still = 0;
+    const done = err => {
+      if (over) return; over = true; clearInterval(watch); clearTimeout(startTo);
+      try { hls && hls.destroy(); } catch (e){} try { video.pause(); video.removeAttribute("src"); video.load(); } catch (e){}
+      video._stopClip = null; err ? fail(err) : ok();
+    };
+    video._stopClip = () => done();
+    video.muted = true; video.playsInline = true; video.autoplay = true;
+    video.onloadedmetadata = () => {
+      const D = video.duration;
+      // If the playlist is longer than the clip, jump to the moment the link asks for
+      if (isFinite(D) && z && z > a && D >= z - 0.5){ try { video.currentTime = a; } catch (e){} endAt = z; }
+      else endAt = isFinite(D) && D > 0 ? D : 60;
+      video.play().catch(() => {});
+    };
+    video.onplaying = () => clearTimeout(startTo);
+    video.onended = () => done();
+    video.onerror = () => done(new Error("clip couldn't be played"));
+    const startTo = setTimeout(() => done(new Error("clip didn't start")), 20000);
+    // Stop at the clip's end, and give up if playback freezes (but not while the screen is paused)
+    const watch = setInterval(() => {
+      if (endAt && video.currentTime >= endAt - 0.1) return done();
+      if (document.body.classList.contains("is-paused") || video.paused && video.readyState < 2 && lastT < 0) return;
+      if (video.currentTime === lastT){ if (++still >= 30) done(new Error("clip stopped playing")); } else { still = 0; lastT = video.currentTime; }
+    }, 500);
+    if (video.canPlayType("application/vnd.apple.mpegurl")) { video.src = url; video.play().catch(() => {}); }
+    else loadHlsJs().then(Hls => {
+      if (over) return;
+      if (!Hls.isSupported()) return done(new Error("this screen's browser can't play the clips"));
+      hls = new Hls({ maxBufferLength: 60 });
+      hls.on(Hls.Events.ERROR, (ev, data) => { if (data && data.fatal) done(new Error("clip couldn't be loaded (" + (data.details || data.type) + ")")); });
+      hls.loadSource(url); hls.attachMedia(video);
+    }).catch(done);
+  });
+}
+function mediaBox(el){
+  let box = el.querySelector(".lb-media");
+  if (!box){
+    box = document.createElement("div"); box.className = "lb-media";
+    box.innerHTML = `<div class="lb-mframe"></div><div class="lb-mcap"></div>`;
+    el.prepend(box);
+  }
+  return box;
+}
+function closeMedia(el){
+  const st = el._media; if (!st) return;
+  try { st.yt && st.yt.destroy(); } catch (e){}
+  el.querySelectorAll(".lb-mframe video").forEach(v => { v._onDrop = null; try { v._hls && v._hls.destroy(); } catch (e){} try { v.pause(); v.removeAttribute("src"); v.load(); } catch (e){} });
+  st.yt = null; st.key = null;
+  el.querySelector(".lb-media")?.remove();
+  el.classList.remove("with-media", "m-tall");
+  el.style.gridTemplateColumns = el.style.gridTemplateRows = "";
+}
+// Controls used by Pause / Play and when the slide leaves the screen
+function mediaControls(el){
+  const st = el._media;
+  return {
+    pauseVideo(){ try { st.yt && st.yt.pauseVideo(); } catch (e){} const v = el.querySelector(".lb-mframe video"); if (v) v.pause(); },
+    playVideo(){ try { st.yt && st.yt.playVideo(); } catch (e){} const v = el.querySelector(".lb-mframe video"); if (v && (v._stopClip || v._live)) v.play().catch(() => {}); },
+    stopVideo(){ st.gone = true; st.queue = []; const v = el.querySelector(".lb-mframe video"); if (v && v._stopClip) v._stopClip(); else if (v) v.pause(); try { st.yt && st.yt.stopVideo(); } catch (e){} },
+    destroy(){ closeMedia(el); }
+  };
+}
+function liveMedia(el, s, d){
+  const st = el._media || (el._media = { queue: [] });
+  if (!el._player) el._player = mediaControls(el);
+  if (st.gone) return;
+  const live = !!(d.featured && d.featuredLive);
+  const hl = d.featured ? matchHighlights(d.fBalls) : [];
+
+  if (s.mode === "stream"){
+    const v = live ? pickStream(d.fCard, s.streamNo, hl) : null;
+    if (!v){ if (st.key) closeMedia(el); return; }
+    if (st.key === v.key) return;
+    if (st.failed === v.key && Date.now() - st.failedAt < 3 * 60e3) return;   // retry a failed stream every few minutes
+    closeMedia(el); st.key = v.key;
+    const box = mediaBox(el), frame = box.querySelector(".lb-mframe");
+    box.querySelector(".lb-mcap").innerHTML = `<span class="tk-badge live">Live stream</span><span>${esc(d.featured.teams.map(t => t.displayName).join(" v "))}</span>`;
+    el.classList.add("with-media"); fitBoard(el);
+    const gaveUp = e => {
+      if (st.key !== v.key) return;
+      warn("Live stream: " + e.message + " — showing the scoreboard only.");
+      st.failed = v.key; st.failedAt = Date.now(); closeMedia(el); fitBoard(el);
+    };
+    // FrogBox's own copy of the stream (also used when YouTube won't play, e.g. when the page is opened as a file)
+    const tryDirect = why => {
+      if (st.key !== v.key || st.gone) return;
+      if (!v.hls) return gaveUp(why || new Error("no stream link"));
+      if (why) console.warn("[RKT TV] YouTube stream failed (" + why.message + "), trying the direct stream");
+      frame.innerHTML = `<video muted playsinline></video>`;
+      const video = frame.firstChild;
+      video._onDrop = e => gaveUp(e);
+      playLive(video, v.hls).then(() => { if (st.gone) video.pause(); }).catch(e => gaveUp(why ? new Error(`YouTube: ${why.message.replace(/^YouTube: /, "")}; direct stream: ${e.message}`) : e));
+    };
+    // YouTube won't play on a page opened straight from a file (it has no web address), so go direct there
+    if (!v.vid || location.protocol === "file:") return tryDirect();
+    const holder = document.createElement("div"); holder.className = "lb-yt"; frame.appendChild(holder);
+    makeYouTube({ vid: v.vid, start: 0, secs: 1 }, holder)
+      .then(() => { st.yt = holder._player; if (st.gone) st.yt.stopVideo(); })
+      .catch(e => { try { holder._player && holder._player.destroy && holder._player.destroy(); } catch (x){} st.yt = null; tryDirect(e); });
+    st.yt = holder._player;
+    return;
+  }
+
+  // Highlights: queue any new ones, play them one at a time, then hand the screen back to the scores
+  const id = d.featured?.id; if (!id) return;
+  const seen = hlSeen.get(id) || new Set(); hlSeen.set(id, seen);
+  const cutoff = Date.now() - HL_RECENT_MINUTES * 60e3;
+  const known = new Set(st.queue.map(h => h.id).concat(st.playing ? [st.playing.id] : []));
+  st.queue.push(...hl.filter(h => !seen.has(h.id) && !known.has(h.id) && h.t >= cutoff).map(h => ({ ...h, seen })));
+  st.queue = st.queue.slice(-HL_MAX_QUEUE);
+  if (!st.playing && st.queue.length) nextHighlight(el);
+}
+async function nextHighlight(el){
+  const st = el._media;
+  while (st.queue.length && !st.gone && el.isConnected){
+    const h = st.queue.shift(); st.playing = h;
+    if (h.seen) h.seen.add(h.id);
+    el._busy = true;
+    const box = mediaBox(el), frame = box.querySelector(".lb-mframe");
+    const cls = /wicket|out/i.test(h.type) ? "w" : /six/i.test(h.type) ? "six" : /four/i.test(h.type) ? "four" : "";
+    box.querySelector(".lb-mcap").innerHTML = `<span class="tk-badge hl ${cls}">${esc(h.type)}</span><span>${esc(h.text)}${h.over ? ` <i>· Over ${esc(h.over)}</i>` : ""}</span>`;
+    frame.innerHTML = `<video muted playsinline></video>`;
+    el.classList.add("with-media"); fitBoard(el);
+    try { await playClip(frame.querySelector("video"), h.url); }
+    catch (e){ warn(`Highlight (${h.type}${h.over ? " " + h.over : ""}): ${e.message}`); }
+  }
+  st.playing = null; el._busy = false;
+  if (el.isConnected){ closeMedia(el); fitBoard(el); }
+  const after = el._afterBusy; el._afterBusy = null; if (after) after();
 }
 
 /* ---------- screens ---------- */
@@ -1679,8 +1951,9 @@ const GUIDE_TYPES = [
       "The tab": "<b>Order</b> (1 = top) and <b>Name</b> are required. Every other column is shown as a column in the table, with its heading as typed (e.g. <i>Runs</i>, <i>HS</i>, <i>Avg</i>)." },
     row: ["Stats", "Runs", "", 10, "Most Club Runs"], row2: { head: ["Order", "Name", "Runs", "HS"], rows: [[1, "Chris Ryan", "10,280", 134], [2, "Paul McGaw", "10,133", ""], [3, "Glenn Beckett", "7,365", ""]] } },
   { id: "livescore", type: "Live Score", blurb: "A full-screen live scoreboard for a grade. The club's game is on top in detail (score, batters, bowlers, partnership, target, last 20 balls); other live games in the grade are tiles below. Updates every 20 seconds. Skipped when nothing is live.",
-    fields: { Link: "The grade ID (or any link containing it).", Length: "Seconds on screen. Use a long time (e.g. 120) if it's the main thing on a scoreboard." },
-    row: ["Live Score", "2ac3302e-ade0-4e77-9e5b-d2a194a47035", "", 60, ""] }
+    fields: { Link: "The grade ID (or any link containing it).", Length: "Seconds on screen. Use a long time (e.g. 120) if it's the main thing on a scoreboard.",
+      Details: "Blank = scores only. <i>Stream</i> = also show the club game's live YouTube stream beside the scores (<i>Stream 2</i> picks the second camera). <i>Highlights</i> = when the club game has a new highlight (four, six, wicket), play the clip beside the scores, then go back to scores only. Both need the game to be streamed on the cricket app; otherwise the plain scoreboard shows." },
+    row: ["Live Score", "2ac3302e-ade0-4e77-9e5b-d2a194a47035", "", 60, "Highlights"] }
 ];
 function exampleTable(head, rows, hl){
   return `<div class="ex-wrap"><table class="ex"><tr><th class="rn"></th>${head.map((h, i) => `<th>${String.fromCharCode(65 + i)}</th>`).join("")}</tr>
@@ -2087,7 +2360,9 @@ async function runClub(club){
   // ---- timing with pause support ----
   let paused = false, timer = null, resolveWait = null, waitStart = 0, waitMs = 0, remain = 0, autoResume = null, nav = null;
   const finish = () => { clearTimeout(timer); timer = null; const r = resolveWait; resolveWait = null; if (r) r(); };
-  const wait = ms => new Promise(r => { resolveWait = r; waitMs = ms; waitStart = Date.now(); if (paused) remain = ms; else timer = setTimeout(finish, ms); });
+  // Time's up: if a highlight clip is mid-play, let it finish first (Next / Back still move on straight away)
+  const timeUp = () => { timer = null; if (current && current._busy){ current._afterBusy = () => { if (resolveWait && !paused) finish(); }; return; } finish(); };
+  const wait = ms => new Promise(r => { resolveWait = r; waitMs = ms; waitStart = Date.now(); if (paused) remain = ms; else timer = setTimeout(timeUp, ms); });
   const ppBtn = document.getElementById("pp");
   function pause(){
     if (paused) return; paused = true; document.body.classList.add("is-paused"); ppBtn.textContent = "▶ Play"; vid("pauseVideo");
@@ -2098,7 +2373,7 @@ async function runClub(club){
   }
   function play(){
     if (!paused) return; paused = false; document.body.classList.remove("is-paused"); ppBtn.textContent = "⏸ Pause"; clearTimeout(autoResume); vid("playVideo");
-    if (resolveWait){ waitStart = Date.now(); waitMs = remain; timer = setTimeout(finish, remain);
+    if (resolveWait){ waitStart = Date.now(); waitMs = remain; timer = setTimeout(timeUp, remain);
       void prog.offsetWidth; prog.style.transition = `width ${remain / 1000}s linear`; prog.style.width = "100%"; }
   }
   const togglePause = () => paused ? play() : pause();
